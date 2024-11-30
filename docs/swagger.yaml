@@ -1,0 +1,201 @@
+basePath: /
+definitions:
+  handlers.FacebookAuthInput:
+    properties:
+      access_token:
+        example: EAAaYA6ZA...
+        type: string
+    required:
+    - access_token
+    type: object
+  handlers.SignUpInput:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: password123
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.SocialAuthInput:
+    properties:
+      id_token:
+        example: eyJhbGciOiJS...
+        type: string
+    required:
+    - id_token
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: A Firebase authentication service with social login support.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Auth Service API
+  version: "1.0"
+paths:
+  /api/profile:
+    get:
+      consumes:
+      - application/json
+      description: Get authenticated user's profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User profile
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - profile
+  /auth/facebook:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user using Facebook access token
+      parameters:
+      - description: Facebook Access Token
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.FacebookAuthInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully authenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Authenticate with Facebook
+      tags:
+      - auth
+  /auth/google:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user using Google ID token
+      parameters:
+      - description: Google ID Token
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SocialAuthInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully authenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Authenticate with Google
+      tags:
+      - auth
+  /auth/signup:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user with email and password
+      parameters:
+      - description: Sign Up Credentials
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.SignUpInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully created user
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Sign up a new user
+      tags:
+      - auth
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
