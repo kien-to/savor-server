@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"savor-backend-2/models"
+	"savor-server/models"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -70,7 +70,14 @@ func SignUp(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"user_id": user.UID})
+		// Generate custom token
+		token, err := client.CustomToken(context.Background(), user.UID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"user_id": user.UID, "token": token})
 	}
 }
 
@@ -106,7 +113,14 @@ func GoogleAuth(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"user_id": token.UID})
+		// After verifying ID token, generate custom token
+		customToken, err := client.CustomToken(context.Background(), token.UID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"user_id": token.UID, "token": customToken})
 	}
 }
 
@@ -142,7 +156,14 @@ func FacebookAuth(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"user_id": token.UID})
+		// After verifying ID token, generate custom token
+		customToken, err := client.CustomToken(context.Background(), token.UID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"user_id": token.UID, "token": customToken})
 	}
 }
 
@@ -191,6 +212,13 @@ func Login(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, models.AuthResponse{UserID: user.UID})
+		// Generate custom token
+		token, err := client.CustomToken(context.Background(), user.UID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: "Failed to generate token"})
+			return
+		}
+
+		c.JSON(http.StatusOK, models.AuthResponse{UserID: user.UID, Token: token})
 	}
-} 
+}

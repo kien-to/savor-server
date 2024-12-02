@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 
-	"savor-backend-2/config"
-	_ "savor-backend-2/docs" // This will be auto-generated
-	"savor-backend-2/handlers"
-	"savor-backend-2/middleware"
+	"savor-server/config"
+	_ "savor-server/docs" // This will be auto-generated
+	"savor-server/handlers"
+	"savor-server/middleware"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -27,6 +27,8 @@ import (
 
 // @host      localhost:8080
 // @BasePath  /
+
+// http://localhost:8080/swagger/index.html#/auth/post_auth_signup
 
 // @securityDefinitions.apikey BearerAuth
 // @in header

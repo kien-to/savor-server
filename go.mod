@@ -1,4 +1,4 @@
-module savor-backend-2
+module savor-server
 
 go 1.21.0
 
