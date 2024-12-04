@@ -62,5 +62,12 @@ func main() {
 		protected.GET("/profile", handlers.GetProfile)
 	}
 
+	// Home routes
+	homeGroup := r.Group("/api/home")
+	{
+		homeGroup.GET("", handlers.GetHomePageData)
+		homeGroup.GET("/search", handlers.SearchStores)
+	}
+
 	r.Run(":8080")
 }

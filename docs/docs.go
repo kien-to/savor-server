@@ -255,6 +255,178 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/home": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get personalized home page data including recommended stores and pickup times",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "Get home page data",
+                "parameters": [
+                    {
+                        "type": "number",
+                        "description": "User's latitude",
+                        "name": "latitude",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "User's longitude",
+                        "name": "longitude",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Home page data",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.HomePageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/home/search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Search for stores by name or description",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "home"
+                ],
+                "summary": "Search stores",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of stores",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.Store"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid parameters",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "description": "Authenticate user with email and password",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login user",
+                "parameters": [
+                    {
+                        "description": "Login Credentials",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.LoginInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successfully authenticated",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -296,6 +468,96 @@ const docTemplate = `{
                 "id_token": {
                     "type": "string",
                     "example": "eyJhbGciOiJS..."
+                }
+            }
+        },
+        "handlers.Store": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "pickUpTime": {
+                    "type": "string"
+                },
+                "distance": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "rating": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.HomePageResponse": {
+            "type": "object",
+            "properties": {
+                "userLocation": {
+                    "type": "object",
+                    "properties": {
+                        "city": {
+                            "type": "string"
+                        },
+                        "distance": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "recommendedStores": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.Store"
+                    }
+                },
+                "pickUpTomorrow": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.Store"
+                    }
+                },
+                "emailVerified": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.LoginInput": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "password123"
+                }
+            }
+        },
+        "handlers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJS..."
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "user123"
                 }
             }
         }
