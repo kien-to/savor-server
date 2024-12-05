@@ -95,27 +95,31 @@ func SignUp(app *firebase.App) gin.HandlerFunc {
 func GoogleAuth(app *firebase.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input SocialAuthInput
-
 		if err := c.ShouldBindJSON(&input); err != nil {
+			log.Printf("Failed to bind JSON: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		client, err := app.Auth(context.Background())
 		if err != nil {
+			log.Printf("Failed to initialize Firebase auth client: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize auth client"})
 			return
 		}
 
+		// Add debug logging for token verification
+		log.Printf("Attempting to verify Google ID token length: %d", len(input.IdToken))
 		token, err := client.VerifyIDToken(context.Background(), input.IdToken)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			log.Printf("Failed to verify Google ID token: %v", err)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": fmt.Sprintf("Invalid token: %v", err)})
 			return
 		}
 
-		// After verifying ID token, generate custom token
 		customToken, err := client.CustomToken(context.Background(), token.UID)
 		if err != nil {
+			log.Printf("Failed to generate custom token: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 			return
 		}

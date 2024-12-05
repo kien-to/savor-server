@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"savor-server/config"
 	_ "savor-server/docs" // This will be auto-generated
@@ -34,14 +35,20 @@ import (
 // @in header
 // @name Authorization
 func main() {
+	// Set up logging
+	log.SetOutput(os.Stdout)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	// Initialize Firebase
 	app, err := config.InitializeFirebase()
 	if err != nil {
 		log.Fatalf("Error initializing Firebase: %v\n", err)
 	}
 
-	// Initialize Gin router
-	r := gin.Default()
+	// Initialize Gin router with debug mode
+	gin.SetMode(gin.DebugMode)
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery())
 
 	// Swagger route
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
