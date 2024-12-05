@@ -60,6 +60,7 @@ func main() {
 		auth.POST("/google", handlers.GoogleAuth(app))
 		auth.POST("/facebook", handlers.FacebookAuth(app))
 		auth.POST("/login", handlers.Login(app))
+		auth.POST("/phone", handlers.PhoneAuth(app))
 	}
 
 	// Protected routes example

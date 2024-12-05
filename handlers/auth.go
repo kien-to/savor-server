@@ -32,6 +32,11 @@ type LoginInput struct {
 	Password string `json:"password" binding:"required" example:"password123"`
 }
 
+type PhoneAuthInput struct {
+	PhoneNumber string `json:"phone_number" binding:"required" example:"+1234567890"`
+	Code        string `json:"code" binding:"required" example:"123456"`
+}
+
 // @Summary     Sign up a new user
 // @Description Register a new user with email and password
 // @Tags        auth
@@ -168,6 +173,43 @@ func FacebookAuth(app *firebase.App) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"user_id": token.UID, "token": customToken})
+	}
+}
+
+// @Summary     Authenticate with Phone
+// @Description Authenticate user using phone number and verification code
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       input body PhoneAuthInput true "Phone Auth Input"
+// @Success     200 {object} map[string]string "Successfully authenticated"
+// @Failure     400 {object} map[string]string "Invalid input"
+// @Failure     401 {object} map[string]string "Invalid code"
+// @Router      /auth/phone [post]
+func PhoneAuth(app *firebase.App) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input PhoneAuthInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		client, err := app.Auth(context.Background())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize auth client"})
+			return
+		}
+
+		token, err := client.VerifyIDToken(context.Background(), input.Code)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid verification code"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"user_id": token.UID,
+			"token":   input.Code,
+		})
 	}
 }
 
