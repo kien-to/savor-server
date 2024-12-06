@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"github.com/joho/godotenv"
 
 	"savor-server/config"
 	_ "savor-server/docs" // This will be auto-generated
@@ -35,6 +36,11 @@ import (
 // @in header
 // @name Authorization
 func main() {
+	// Load .env file before any other setup
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found")
+	}
+
 	// Set up logging
 	log.SetOutput(os.Stdout)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)

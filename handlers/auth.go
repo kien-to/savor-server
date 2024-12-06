@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"savor-server/models"
 
@@ -296,8 +297,7 @@ func ForgotPassword(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		apiKey := "AIzaSyBcF4jUafzDMU7oAjWBlNLJARr282r9Duo"
-		// os.Getenv("FIREBASE_API_KEY")
+		apiKey := os.Getenv("FIREBASE_API_KEY")
 		if apiKey == "" {
 			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 				Error: "Firebase API key not configured",
