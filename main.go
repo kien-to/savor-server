@@ -61,6 +61,7 @@ func main() {
 		auth.POST("/facebook", handlers.FacebookAuth(app))
 		auth.POST("/login", handlers.Login(app))
 		auth.POST("/phone", handlers.PhoneAuth(app))
+		auth.POST("/forgot-password", handlers.ForgotPassword(app))
 	}
 
 	// Protected routes example

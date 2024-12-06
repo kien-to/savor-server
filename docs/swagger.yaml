@@ -8,6 +8,59 @@ definitions:
     required:
     - access_token
     type: object
+  handlers.ForgotPasswordInput:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
+  handlers.HomePageResponse:
+    properties:
+      emailVerified:
+        type: boolean
+      pickUpTomorrow:
+        items:
+          $ref: '#/definitions/handlers.Store'
+        type: array
+      recommendedStores:
+        items:
+          $ref: '#/definitions/handlers.Store'
+        type: array
+      userLocation:
+        properties:
+          city:
+            type: string
+          distance:
+            description: in miles
+            type: integer
+        type: object
+    type: object
+  handlers.LoginInput:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: password123
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handlers.PhoneAuthInput:
+    properties:
+      code:
+        example: "123456"
+        type: string
+      phone_number:
+        example: "+1234567890"
+        type: string
+    required:
+    - code
+    - phone_number
+    type: object
   handlers.SignUpInput:
     properties:
       email:
@@ -28,6 +81,40 @@ definitions:
     required:
     - id_token
     type: object
+  handlers.Store:
+    properties:
+      description:
+        type: string
+      distance:
+        type: string
+      id:
+        type: string
+      imageUrl:
+        type: string
+      pickUpTime:
+        type: string
+      price:
+        type: number
+      rating:
+        type: number
+      title:
+        type: string
+    type: object
+  models.AuthResponse:
+    properties:
+      token:
+        example: token123456
+        type: string
+      user_id:
+        example: uId123456
+        type: string
+    type: object
+  models.ErrorResponse:
+    properties:
+      error:
+        example: Invalid credentials
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -42,6 +129,74 @@ info:
   title: Auth Service API
   version: "1.0"
 paths:
+  /api/home:
+    get:
+      consumes:
+      - application/json
+      description: Get personalized home page data including recommended stores and
+        pickup times
+      parameters:
+      - description: User's latitude
+        in: query
+        name: latitude
+        required: true
+        type: number
+      - description: User's longitude
+        in: query
+        name: longitude
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.HomePageResponse'
+        "400":
+          description: Invalid parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get home page data
+      tags:
+      - home
+  /api/home/search:
+    get:
+      consumes:
+      - application/json
+      description: Search for stores by name or description
+      parameters:
+      - description: Search query
+        in: query
+        name: query
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.Store'
+            type: array
+        "400":
+          description: Invalid parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Search stores
+      tags:
+      - home
   /api/profile:
     get:
       consumes:
@@ -115,6 +270,42 @@ paths:
       summary: Authenticate with Facebook
       tags:
       - auth
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Send password reset email to user
+      parameters:
+      - description: Email Address
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.ForgotPasswordInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Reset email sent successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Forgot Password
+      tags:
+      - auth
   /auth/google:
     post:
       consumes:
@@ -155,6 +346,72 @@ paths:
               type: string
             type: object
       summary: Authenticate with Google
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Login user
+      tags:
+      - auth
+  /auth/phone:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user using phone number and verification code
+      parameters:
+      - description: Phone Auth Input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.PhoneAuthInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully authenticated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid code
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Authenticate with Phone
       tags:
       - auth
   /auth/signup:

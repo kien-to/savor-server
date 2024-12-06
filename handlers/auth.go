@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -35,6 +37,10 @@ type LoginInput struct {
 type PhoneAuthInput struct {
 	PhoneNumber string `json:"phone_number" binding:"required" example:"+1234567890"`
 	Code        string `json:"code" binding:"required" example:"123456"`
+}
+
+type ForgotPasswordInput struct {
+	Email string `json:"email" binding:"required" example:"user@example.com"`
 }
 
 // @Summary     Sign up a new user
@@ -266,5 +272,83 @@ func Login(app *firebase.App) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, models.AuthResponse{UserID: user.UID, Token: token})
+	}
+}
+
+// @Summary     Forgot Password
+// @Description Send password reset email to user
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       input body ForgotPasswordInput true "Email Address"
+// @Success     200 {object} map[string]string "Reset email sent successfully"
+// @Failure     400 {object} map[string]string "Invalid input"
+// @Failure     500 {object} map[string]string "Server error"
+// @Router      /auth/forgot-password [post]
+func ForgotPassword(app *firebase.App) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input ForgotPasswordInput
+
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error: err.Error(),
+			})
+			return
+		}
+
+		apiKey := "AIzaSyBcF4jUafzDMU7oAjWBlNLJARr282r9Duo"
+		// os.Getenv("FIREBASE_API_KEY")
+		if apiKey == "" {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error: "Firebase API key not configured",
+			})
+			return
+		}
+
+		url := fmt.Sprintf("https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=%s", apiKey)
+
+		payload := map[string]interface{}{
+			"requestType": "PASSWORD_RESET",
+			"email":       input.Email,
+		}
+
+		jsonPayload, err := json.Marshal(payload)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error: "Failed to process request",
+			})
+			return
+		}
+
+		resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error: "Failed to send reset email",
+			})
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			var firebaseError struct {
+				Error struct {
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&firebaseError); err != nil {
+				c.JSON(http.StatusBadRequest, models.ErrorResponse{
+					Error: "Failed to process Firebase response",
+				})
+				return
+			}
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error: firebaseError.Error.Message,
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Password reset email sent successfully",
+		})
 	}
 }
