@@ -75,6 +75,7 @@ func main() {
 	protected.Use(middleware.AuthMiddleware(app))
 	{
 		protected.GET("/profile", handlers.GetProfile)
+		protected.GET("/stores/:id", handlers.GetStoreDetail)
 	}
 
 	// Home routes
