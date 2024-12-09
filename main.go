@@ -1,6 +1,7 @@
 package main
 
 import (
+	// "context"
 	"log"
 	"os"
 	"github.com/joho/godotenv"
@@ -8,11 +9,12 @@ import (
 	"savor-server/config"
 	_ "savor-server/docs" // This will be auto-generated
 	"savor-server/handlers"
-	"savor-server/middleware"
+	// "savor-server/middleware"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/gin-contrib/cors"
 )
 
 // @title           Auth Service API
@@ -51,10 +53,25 @@ func main() {
 		log.Fatalf("Error initializing Firebase: %v\n", err)
 	}
 
+	// Get Firebase Auth Client
+	// authClient, err := app.Auth(context.Background())
+	// if err != nil {
+	// 	log.Fatalf("Error getting Auth client: %v\n", err)
+	// }
+
 	// Initialize Gin router with debug mode
 	gin.SetMode(gin.DebugMode)
-	r := gin.New()
+	r := gin.Default()
 	r.Use(gin.Logger(), gin.Recovery())
+
+	// Add CORS middleware
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
+		AllowHeaders:     []string{"Origin", "Content-Type"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 
 	// Swagger route
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -71,11 +88,10 @@ func main() {
 	}
 
 	// Protected routes example
-	protected := r.Group("/api")
-	protected.Use(middleware.AuthMiddleware(app))
+	protected := r.Group("/api/settings")
+	// protected.Use(middleware.AuthMiddleware(authClient))
 	{
 		protected.GET("/profile", handlers.GetProfile)
-		protected.GET("/stores/:id", handlers.GetStoreDetail)
 	}
 
 	// Home routes
@@ -83,7 +99,18 @@ func main() {
 	{
 		homeGroup.GET("", handlers.GetHomePageData)
 		homeGroup.GET("/search", handlers.SearchStores)
+		homeGroup.POST("/stores/:id/save", handlers.SaveStore)
+		homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStore)
+		homeGroup.GET("/stores/favorites", handlers.GetFavorites)
+		// homeGroup.GET("/stores/:id", handlers.GetStoreDetail)
 	}
+
+	storesGroup := r.Group("/api/stores")
+	{
+		storesGroup.GET("/:id", handlers.GetStoreDetail)
+		storesGroup.POST("/:id/toggle-save", handlers.ToggleSaveStore)
+	}
+
 
 	r.Run(":8080")
 }
