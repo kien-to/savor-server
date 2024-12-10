@@ -43,14 +43,14 @@ const docTemplate = `{
                         "description": "User's latitude",
                         "name": "latitude",
                         "in": "query",
-                        "required": true
+                        "required": false
                     },
                     {
                         "type": "number",
                         "description": "User's longitude",
                         "name": "longitude",
                         "in": "query",
-                        "required": true
+                        "required": false
                     }
                 ],
                 "responses": {
@@ -564,7 +564,6 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "distance": {
-                            "description": "in miles",
                             "type": "integer"
                         }
                     }
@@ -648,6 +647,9 @@ const docTemplate = `{
                 },
                 "imageUrl": {
                     "type": "string"
+                },
+                "isSaved": {
+                    "type": "boolean"
                 },
                 "pickUpTime": {
                     "type": "string"

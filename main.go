@@ -2,19 +2,25 @@ package main
 
 import (
 	// "context"
+	"context"
 	"log"
 	"os"
+
 	"github.com/joho/godotenv"
 
 	"savor-server/config"
 	_ "savor-server/docs" // This will be auto-generated
 	"savor-server/handlers"
-	// "savor-server/middleware"
+	"savor-server/middleware"
 
+	"savor-server/db" // Add this import
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq" // postgres driver
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"github.com/gin-contrib/cors"
 )
 
 // @title           Auth Service API
@@ -53,11 +59,28 @@ func main() {
 		log.Fatalf("Error initializing Firebase: %v\n", err)
 	}
 
-	// Get Firebase Auth Client
-	// authClient, err := app.Auth(context.Background())
-	// if err != nil {
-	// 	log.Fatalf("Error getting Auth client: %v\n", err)
-	// }
+	// Create Firebase Auth client
+	authClient, err := app.Auth(context.Background())
+	if err != nil {
+		log.Fatalf("Error creating Firebase Auth client: %v\n", err)
+	}
+
+	// Initialize database connection
+	connStr := "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
+	database, err := sqlx.Connect("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer database.Close()
+
+	// Test the connection
+	err = database.Ping()
+	if err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
+	// Assign to your global db variable
+	db.DB = database
 
 	// Initialize Gin router with debug mode
 	gin.SetMode(gin.DebugMode)
@@ -108,9 +131,8 @@ func main() {
 	storesGroup := r.Group("/api/stores")
 	{
 		storesGroup.GET("/:id", handlers.GetStoreDetail)
-		storesGroup.POST("/:id/toggle-save", handlers.ToggleSaveStore)
+		storesGroup.POST("/:id/toggle-save", middleware.AuthMiddleware(authClient), handlers.ToggleSaveStore)
 	}
-
 
 	r.Run(":8080")
 }

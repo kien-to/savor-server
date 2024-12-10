@@ -506,49 +506,6 @@
                     }
                 }
             }
-        },
-        "/api/stores/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get detailed information about a specific store",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "stores"
-                ],
-                "summary": "Get store details",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Store ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/handlers.StoreDetail"
-                        }
-                    },
-                    "404": {
-                        "description": "Store not found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
@@ -601,7 +558,6 @@
                             "type": "string"
                         },
                         "distance": {
-                            "description": "in miles",
                             "type": "integer"
                         }
                     }
@@ -686,6 +642,9 @@
                 "imageUrl": {
                     "type": "string"
                 },
+                "isSaved": {
+                    "type": "boolean"
+                },
                 "pickUpTime": {
                     "type": "string"
                 },
@@ -719,53 +678,6 @@
                 "error": {
                     "type": "string",
                     "example": "Invalid credentials"
-                }
-            }
-        },
-        "handlers.StoreDetail": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "pickUpTime": {
-                    "type": "string"
-                },
-                "distance": {
-                    "type": "string"
-                },
-                "price": {
-                    "type": "number"
-                },
-                "originalPrice": {
-                    "type": "number"
-                },
-                "imageUrl": {
-                    "type": "string"
-                },
-                "rating": {
-                    "type": "number"
-                },
-                "reviews": {
-                    "type": "integer"
-                },
-                "address": {
-                    "type": "string"
-                },
-                "itemsLeft": {
-                    "type": "integer"
-                },
-                "highlights": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         }

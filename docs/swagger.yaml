@@ -33,7 +33,6 @@ definitions:
           city:
             type: string
           distance:
-            description: in miles
             type: integer
         type: object
     type: object
@@ -91,6 +90,8 @@ definitions:
         type: string
       imageUrl:
         type: string
+      isSaved:
+        type: boolean
       pickUpTime:
         type: string
       price:
@@ -100,37 +101,6 @@ definitions:
       title:
         type: string
     type: object
-  handlers.StoreDetail:
-    type: object
-    properties:
-      id:
-        type: string
-      title:
-        type: string
-      description:
-        type: string
-      pickUpTime:
-        type: string
-      distance:
-        type: string
-      price:
-        type: number
-      originalPrice:
-        type: number
-      imageUrl:
-        type: string
-      rating:
-        type: number
-      reviews:
-        type: integer
-      address:
-        type: string
-      itemsLeft:
-        type: integer
-      highlights:
-        type: array
-        items:
-          type: string
   models.AuthResponse:
     properties:
       token:
@@ -481,33 +451,6 @@ paths:
       summary: Sign up a new user
       tags:
       - auth
-  /api/stores/{id}:
-    get:
-      security:
-        - BearerAuth: []
-      description: Get detailed information about a specific store
-      consumes:
-        - application/json
-      produces:
-        - application/json
-      tags:
-        - stores
-      summary: Get store details
-      parameters:
-        - name: id
-          in: path
-          required: true
-          type: string
-          description: Store ID
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: "#/definitions/handlers.StoreDetail"
-        "404":
-          description: Store not found
-          schema:
-            $ref: "#/definitions/models.ErrorResponse"
 securityDefinitions:
   BearerAuth:
     in: header

@@ -1,7 +1,13 @@
 package handlers
 
 import (
+	"fmt"
+	"log"
 	"net/http"
+	"strings"
+
+	"savor-server/db"
+	"savor-server/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,7 +27,7 @@ type Store struct {
 type HomePageResponse struct {
 	UserLocation struct {
 		City     string `json:"city"`
-		Distance int    `json:"distance"` // in miles
+		Distance int    `json:"distance"`
 	} `json:"userLocation"`
 	RecommendedStores []Store `json:"recommendedStores"`
 	PickUpTomorrow    []Store `json:"pickUpTomorrow"`
@@ -40,85 +46,63 @@ type HomePageResponse struct {
 // @Failure     401 {object} map[string]string "Unauthorized"
 // @Router      /api/home [get]
 func GetHomePageData(c *gin.Context) {
-	// Get user location from query params
-	lat := c.Query("latitude")
-	lng := c.Query("longitude")
-
-	if lat == "" || lng == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Location parameters required"})
+	fmt.Println("GetHomePageData called")
+	if db.DB == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection not initialized"})
 		return
 	}
 
-	// TODO: Implement actual database queries
-	// For now, return mock data that matches the frontend
+	// userID := c.GetString("user_id")
+	// lat := c.Query("latitude")
+	// lng := c.Query("longitude")
+
+	// if lat == "" || lng == "" {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Location parameters required"})
+	// 	return
+	// }
+
+	var stores []models.Store
+	err := db.DB.Select(&stores, `
+		SELECT 
+			id, title, description, pickup_time, 
+			COALESCE(distance, '0 km') as distance,
+			price, original_price, background_url, image_url,
+			rating, reviews, address, items_left,
+			latitude, longitude, created_at, updated_at,
+			false as is_saved
+		FROM stores 
+		ORDER BY rating DESC 
+		LIMIT 10
+	`)
+
+	if err != nil {
+		fmt.Println(err)
+		log.Printf("Failed to search stores: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stores"})
+		return
+	}
+
+	// Split stores into recommended and pickup tomorrow based on pickup time
+	var recommended, tomorrow []models.Store
+	for _, store := range stores {
+		if strings.Contains(strings.ToLower(store.PickupTime), "tomorrow") {
+			tomorrow = append(tomorrow, store)
+		} else {
+			recommended = append(recommended, store)
+		}
+	}
+
 	response := HomePageResponse{
 		UserLocation: struct {
 			City     string `json:"city"`
 			Distance int    `json:"distance"`
 		}{
-			City:     "Menlo Park",
-			Distance: 6,
+			City:     "Current Location",
+			Distance: 5,
 		},
-		RecommendedStores: []Store{
-			{
-				ID:          "1",
-				Title:       "Homeskillet Redwood City",
-				Description: "Surprise Bag",
-				PickUpTime:  "Pick up tomorrow 1:00 AM - 5:00 AM",
-				Distance:    "3.8 mi",
-				Price:       5.99,
-				ImageURL:    "https://images.crowdspring.com/blog/wp-content/uploads/2023/05/16174534/bakery-hero.png",
-				Rating:      4.6,
-				IsSaved:     false,
-			},
-			{
-				ID:          "2",
-				Title:       "Pho 75",
-				Description: "Surprise Bag",
-				PickUpTime:  "Pick up tomorrow 1:00 AM - 5:00 AM",
-				Distance:    "3.8 mi",
-				Price:       5.99,
-				ImageURL:    "https://www.simplyrecipes.com/thmb/J7YRLoUK0In-BzbTzS1IhFdh_TE=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/__opt__aboutcom__coeus__resources__content_migration__simply_recipes__uploads__2017__02__2017-02-07-ChickenPho-13-87ae826d1cb347c1a68d133edc7d9a1b.jpg",
-				Rating:      4.6,
-				IsSaved:     false,
-			},
-			{
-				ID:          "3",
-				Title:       "Halal Guys",
-				Description: "Surprise Bag",
-				PickUpTime:  "Pick up tomorrow 7:00 AM - 8:00 AM",
-				Distance:    "1.1 mi",
-				Price:       3.99,
-				ImageURL:    "https://tb-static.uber.com/prod/image-proc/processed_images/4f64073782a7b78dadf1605c4c51734b/30be7d11a3ed6f6183354d1933fbb6c7.jpeg",
-				Rating:      4.3,
-				IsSaved:     false,
-			},
-		},
-		PickUpTomorrow: []Store{
-			{
-				ID:          "4",
-				Title:       "Philz Coffee - Forest Ave",
-					Description: "Surprise Bag",
-					PickUpTime:  "Pick up tomorrow 7:00 AM - 8:00 AM",
-					Distance:    "1.1 mi",
-					Price:       3.99,
-					ImageURL:    "https://www.luxcafeclub.com/cdn/shop/articles/Minimalist_Modern_Coffee_Shop_1_1200x1200.png?v=1713243107",
-					Rating:      4.3,
-					IsSaved:     false,
-			},
-			{
-				ID:          "5",
-				Title:       "Philz Coffee - Forest Ave",
-				Description: "Surprise Bag",
-					PickUpTime:  "Pick up tomorrow 7:00 AM - 8:00 AM",
-					Distance:    "1.1 mi",
-					Price:       3.99,
-					ImageURL:    "https://www.luxcafeclub.com/cdn/shop/articles/Minimalist_Modern_Coffee_Shop_1_1200x1200.png?v=1713243107",
-					Rating:      4.3,
-					IsSaved:     false,
-			},
-		},
-		EmailVerified: false,
+		RecommendedStores: convertToStores(recommended),
+		PickUpTomorrow:    convertToStores(tomorrow),
+		EmailVerified:     true,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -140,21 +124,56 @@ func SearchStores(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement actual search logic
-	// For now, return mock data
-	stores := []Store{
-		{
-			ID:          "1",
-			Title:       "Homeskillet Redwood City",
-			Description: "Surprise Bag",
-			PickUpTime:  "Pick up tomorrow 1:00 AM - 5:00 AM",
-			Distance:    "3.8 mi",
-			Price:       5.99,
-			ImageURL:    "/images/stores/homeskillet.jpg",
-			Rating:      4.6,
-			IsSaved:     false,
-		},
+	userID := c.GetString("user_id")
+	var stores []models.Store
+	err := db.DB.Select(&stores, `
+		WITH saved_status AS (
+			SELECT store_id, true as is_saved 
+			FROM saved_stores 
+			WHERE user_id = $1
+		)
+		SELECT s.*, 
+			   array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights,
+			   COALESCE(ss.is_saved, false) as is_saved
+		FROM stores s
+		LEFT JOIN store_highlights sh ON s.id = sh.store_id
+		LEFT JOIN saved_status ss ON s.id = ss.store_id
+		WHERE 
+			s.title ILIKE $2 OR 
+			s.description ILIKE $2 OR 
+			s.address ILIKE $2
+		GROUP BY s.id, ss.is_saved
+		ORDER BY s.rating DESC
+		LIMIT 20
+	`, userID, "%"+query+"%")
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search stores"})
+		return
 	}
 
 	c.JSON(http.StatusOK, stores)
+}
+
+func convertToStores(modelStores []models.Store) []Store {
+	stores := make([]Store, len(modelStores))
+	for i, s := range modelStores {
+		distance := "0 km"
+		if s.Distance != nil {
+			distance = *s.Distance
+		}
+
+		stores[i] = Store{
+			ID:          s.ID,
+			Title:       s.Title,
+			Description: s.Description,
+			PickUpTime:  s.PickupTime,
+			Distance:    distance,
+			Price:       s.Price,
+			ImageURL:    s.ImageURL,
+			Rating:      s.Rating,
+			IsSaved:     s.IsSaved,
+		}
+	}
+	return stores
 }
