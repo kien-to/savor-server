@@ -22,6 +22,8 @@ type Store struct {
 	ImageURL    string  `json:"imageUrl"`
 	Rating      float64 `json:"rating"`
 	IsSaved     bool    `json:"isSaved"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
 }
 
 type HomePageResponse struct {
@@ -53,13 +55,13 @@ func GetHomePageData(c *gin.Context) {
 	}
 
 	// userID := c.GetString("user_id")
-	// lat := c.Query("latitude")
-	// lng := c.Query("longitude")
+	lat := c.Query("latitude")
+	lng := c.Query("longitude")
 
-	// if lat == "" || lng == "" {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Location parameters required"})
-	// 	return
-	// }
+	if lat == "" || lng == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Location parameters required"})
+		return
+	}
 
 	var stores []models.Store
 	err := db.DB.Select(&stores, `
@@ -173,6 +175,8 @@ func convertToStores(modelStores []models.Store) []Store {
 			ImageURL:    s.ImageURL,
 			Rating:      s.Rating,
 			IsSaved:     s.IsSaved,
+			Latitude:    s.Latitude,
+			Longitude:   s.Longitude,
 		}
 	}
 	return stores

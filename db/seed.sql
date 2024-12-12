@@ -26,23 +26,4 @@ INSERT INTO stores (
      4.3, 156, '789 El Camino Real, Palo Alto, CA', 8,
      37.444731, -122.163982);
 
--- Insert store highlights
-INSERT INTO store_highlights (store_id, highlight)
-SELECT id, unnest(ARRAY[
-    CASE 
-        WHEN random() < 0.33 THEN 'Fresh baked goods'
-        WHEN random() < 0.66 THEN 'Local favorite'
-        ELSE 'Best seller'
-    END,
-    CASE 
-        WHEN random() < 0.33 THEN 'Great value'
-        WHEN random() < 0.66 THEN 'Popular item'
-        ELSE 'Staff pick'
-    END,
-    CASE
-        WHEN random() < 0.33 THEN 'Trending now'
-        WHEN random() < 0.66 THEN 'Limited time'
-        ELSE 'Must try'
-    END
-])
-FROM stores;
+
