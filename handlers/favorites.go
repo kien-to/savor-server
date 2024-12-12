@@ -1,11 +1,14 @@
 package handlers
 
 import (
-    "github.com/gin-gonic/gin"
-    "net/http"
-    "github.com/google/uuid"
-    "savor-server/db"
-    "savor-server/models"
+	"fmt"
+	"log"
+	"net/http"
+	"savor-server/db"
+	"savor-server/models"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func SaveStore(c *gin.Context) {
@@ -60,19 +63,28 @@ func UnsaveStore(c *gin.Context) {
 func GetFavorites(c *gin.Context) {
     userID := c.GetString("user_id")
     
+    if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+    // fmt.Println("User ID:", userID)
+    fmt.Printf("User ID: %s\n", userID)
+    log.Println("User ID:", userID)
+
     var stores []models.Store
     err := db.DB.Select(&stores, `
-        SELECT s.*, 
-               array_agg(sh.highlight) as highlights,
-               true as is_saved
+        SELECT s.*, true as is_saved
         FROM stores s
         INNER JOIN saved_stores ss ON s.id = ss.store_id
-        LEFT JOIN store_highlights sh ON s.id = sh.store_id
         WHERE ss.user_id = $1
-        GROUP BY s.id
     `, userID)
 
+    fmt.Println("Favorites:", stores)
+
     if err != nil {
+        fmt.Println("Error fetching favorites:", err)
+        log.Println("Error fetching favorites:", err)
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch favorites"})
         return
     }

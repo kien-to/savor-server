@@ -124,14 +124,14 @@ func main() {
 		homeGroup.GET("/search", handlers.SearchStores)
 		homeGroup.POST("/stores/:id/save", handlers.SaveStore)
 		homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStore)
-		homeGroup.GET("/stores/favorites", handlers.GetFavorites)
-		// homeGroup.GET("/stores/:id", handlers.GetStoreDetail)
+		// homeGroup.GET("/stores/favorites", handlers.GetFavorites)
 	}
 
 	storesGroup := r.Group("/api/stores")
 	{
 		storesGroup.GET("/:id", handlers.GetStoreDetail)
 		storesGroup.POST("/:id/toggle-save", middleware.AuthMiddleware(authClient), handlers.ToggleSaveStore)
+		storesGroup.GET("/favorites", middleware.AuthMiddleware(authClient), handlers.GetFavorites)
 	}
 
 	r.Run(":8080")

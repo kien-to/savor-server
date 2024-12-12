@@ -33,7 +33,10 @@ CREATE TABLE store_highlights (
 );
 
 CREATE TABLE saved_stores (
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    -- user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    store_id TEXT NOT NULL,
     store_id VARCHAR(36) REFERENCES stores(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, store_id)

@@ -47,7 +47,8 @@ func GetStoreDetail(c *gin.Context) {
 
 func ToggleSaveStore(c *gin.Context) {
 	userID := c.GetString("user_id")
-    
+	
+	// Log all headers to see if Authorization is present
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -76,8 +77,6 @@ func ToggleSaveStore(c *gin.Context) {
 		)
 	`, userID, storeID)
 	if err != nil {
-		fmt.Println("Error checking save status:", err)
-		log.Println("Error checking save status:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check save status"})
 		return
 	}
@@ -96,8 +95,6 @@ func ToggleSaveStore(c *gin.Context) {
 	}
 
 	if err != nil {
-		fmt.Println("Error toggling save status:", err)
-		log.Println("Error toggling save status:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to toggle save status"})
 		return
 	}

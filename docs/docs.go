@@ -43,14 +43,14 @@ const docTemplate = `{
                         "description": "User's latitude",
                         "name": "latitude",
                         "in": "query",
-                        "required": false
+                        "required": true
                     },
                     {
                         "type": "number",
                         "description": "User's longitude",
                         "name": "longitude",
                         "in": "query",
-                        "required": false
+                        "required": true
                     }
                 ],
                 "responses": {
