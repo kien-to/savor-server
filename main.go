@@ -82,6 +82,13 @@ func main() {
 	// Assign to your global db variable
 	db.DB = database
 
+	// Initialize Stripe
+	stripeKey := os.Getenv("STRIPE_SECRET_KEY")
+	if stripeKey == "" {
+		log.Fatal("STRIPE_SECRET_KEY is required")
+	}
+	config.InitializeStripe(stripeKey)
+
 	// Initialize Gin router with debug mode
 	gin.SetMode(gin.DebugMode)
 	r := gin.Default()
@@ -132,6 +139,12 @@ func main() {
 		storesGroup.GET("/:id", handlers.GetStoreDetail)
 		storesGroup.POST("/:id/toggle-save", middleware.AuthMiddleware(authClient), handlers.ToggleSaveStore)
 		storesGroup.GET("/favorites", middleware.AuthMiddleware(authClient), handlers.GetFavorites)
+	}
+
+	paymentGroup := r.Group("/api/payment")
+	{
+		paymentGroup.POST("/create-intent", middleware.AuthMiddleware(authClient), handlers.CreateReservation)
+		paymentGroup.POST("/confirm", middleware.AuthMiddleware(authClient), handlers.ConfirmReservation)
 	}
 
 	r.Run(":8080")
