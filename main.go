@@ -145,6 +145,12 @@ func main() {
 	{
 		paymentGroup.POST("/create-intent", middleware.AuthMiddleware(authClient), handlers.CreateReservation)
 		paymentGroup.POST("/confirm", middleware.AuthMiddleware(authClient), handlers.ConfirmReservation)
+		paymentGroup.POST("/confirm-pay-at-store", middleware.AuthMiddleware(authClient), handlers.ConfirmPayAtStore)
+	}
+
+	reservationsGroup := r.Group("/api/reservations")
+	{
+		reservationsGroup.GET("", middleware.AuthMiddleware(authClient), handlers.GetUserReservations)
 	}
 
 	r.Run(":8080")

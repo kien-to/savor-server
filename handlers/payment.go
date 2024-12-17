@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"fmt"
+	"net/http"
+	"savor-server/db"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v74"
 	"github.com/stripe/stripe-go/v74/paymentintent"
@@ -12,6 +15,12 @@ type ReservationRequest struct {
 	Quantity      int     `json:"quantity" binding:"required,min=1"`
 	TotalAmount   float64 `json:"totalAmount" binding:"required"`
 	PaymentMethod string  `json:"paymentMethod" binding:"required"`
+	PickupTime    string  `json:"pickupTime" binding:"required"`
+}
+
+type PayAtStoreRequest struct {
+	PaymentIntentId string `json:"paymentIntentId" binding:"required"`
+	PaymentMethod   string `json:"paymentMethod" binding:"required"`
 }
 
 func CreateReservation(c *gin.Context) {
@@ -27,13 +36,14 @@ func CreateReservation(c *gin.Context) {
 	// Create Stripe PaymentIntent with only card payment method
 	params := &stripe.PaymentIntentParams{
 		Amount:             stripe.Int64(amountInCents),
-		Currency:          stripe.String("usd"),
+		Currency:           stripe.String("usd"),
 		PaymentMethodTypes: []*string{stripe.String("card")},
 	}
 
 	// Add metadata using SetMetadata
 	params.AddMetadata("storeId", req.StoreId)
 	params.AddMetadata("quantity", fmt.Sprintf("%d", req.Quantity))
+	params.AddMetadata("pickup_time", req.PickupTime)
 
 	pi, err := paymentintent.New(params)
 	if err != nil {
@@ -60,12 +70,41 @@ func ConfirmReservation(c *gin.Context) {
 	// Verify payment status
 	pi, err := paymentintent.Get(req.PaymentIntentId, nil)
 	if err != nil {
+		fmt.Println("Failed to verify payment", err)
 		c.JSON(500, gin.H{"error": "Failed to verify payment"})
 		return
 	}
 
 	if pi.Status != stripe.PaymentIntentStatusSucceeded {
+		fmt.Println("Payment not completed", pi.Status)
 		c.JSON(400, gin.H{"error": "Payment not completed"})
+		return
+	}
+
+	// After payment verification, create reservation record in database
+	_, err = db.DB.Exec(`
+		INSERT INTO reservations (
+			user_id, 
+			store_id, 
+			quantity, 
+			total_amount, 
+			status, 
+			payment_id,
+			pickup_time
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`,
+		c.GetString("user_id"),
+		pi.Metadata["storeId"],
+		parseInt(pi.Metadata["quantity"]),
+		float64(pi.Amount)/100,
+		"confirmed",
+		pi.ID,
+		pi.Metadata["pickup_time"],
+	)
+
+	if err != nil {
+		fmt.Println("Failed to create reservation record", err)
+		c.JSON(500, gin.H{"error": "Failed to create reservation record"})
 		return
 	}
 
@@ -89,6 +128,53 @@ func ConfirmReservation(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"status":      "success",
 		"reservation": reservation,
+	})
+}
+
+func ConfirmPayAtStore(c *gin.Context) {
+	var req PayAtStoreRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get the payment intent to retrieve metadata
+	pi, err := paymentintent.Get(req.PaymentIntentId, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve payment intent"})
+		return
+	}
+
+	userID := c.GetString("user_id")
+	storeID := pi.Metadata["storeId"]
+	fmt.Println("storeID", storeID)
+	quantity := parseInt(pi.Metadata["quantity"])
+	pickupTime := pi.Metadata["pickup_time"]
+	// Get store price for total amount calculation
+	var storePrice float64
+	err = db.DB.Get(&storePrice, "SELECT price FROM stores WHERE id = $1", storeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get store details"})
+		return
+	}
+
+	totalAmount := storePrice * float64(quantity)
+
+	// Insert the reservation
+	_, err = db.DB.Exec(`
+		INSERT INTO reservations 
+		(user_id, store_id, quantity, total_amount, status, payment_id, pickup_time)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		userID, storeID, quantity, totalAmount, "pending", "pay_at_store_"+req.PaymentIntentId, pickupTime)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Reservation created successfully",
 	})
 }
 

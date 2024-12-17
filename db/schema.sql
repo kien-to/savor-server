@@ -51,3 +51,15 @@ CREATE EXTENSION IF NOT EXISTS earthdistance;
 CREATE INDEX idx_stores_title ON stores(title);
 CREATE INDEX idx_stores_description ON stores(description);
 CREATE INDEX idx_stores_address ON stores(address); 
+
+CREATE TABLE reservations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(255) NOT NULL,
+    store_id VARCHAR(36) REFERENCES stores(id),
+    quantity INTEGER NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    payment_id VARCHAR(255) NOT NULL,
+    pickup_time VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
