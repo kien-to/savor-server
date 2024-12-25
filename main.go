@@ -153,5 +153,13 @@ func main() {
 		reservationsGroup.GET("", middleware.AuthMiddleware(authClient), handlers.GetUserReservations)
 	}
 
+	storeManagementGroup := r.Group("/api/store-management")
+	storeManagementGroup.Use(middleware.AuthMiddleware(authClient))
+	{
+		storeManagementGroup.POST("/create", handlers.CreateStore)
+		storeManagementGroup.GET("/my-store", handlers.GetMyStore)
+		storeManagementGroup.PUT("/update", handlers.UpdateStore)
+	}
+
 	r.Run(":8080")
 }
