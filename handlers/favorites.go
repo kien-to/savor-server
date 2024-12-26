@@ -62,8 +62,8 @@ func UnsaveStore(c *gin.Context) {
 
 func GetFavorites(c *gin.Context) {
 	userID := c.GetString("user_id")
-	var stores []models.Store
-	err := db.DB.Select(&stores, `
+	var modelStores []models.Store
+	err := db.DB.Select(&modelStores, `
         SELECT s.*, 
                array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights,
                true as is_saved
@@ -81,7 +81,40 @@ func GetFavorites(c *gin.Context) {
 		return
 	}
 
+	// Convert model stores to response format
+	responseStores := make([]Store, len(modelStores))
+	for i, s := range modelStores {
+		description := ""
+		if s.Description.Valid {
+			description = s.Description.String
+		}
+
+		pickupTime := ""
+		if s.PickupTime.Valid {
+			pickupTime = s.PickupTime.String
+		}
+
+		distance := "0 km"
+		if s.Distance != nil {
+			distance = *s.Distance
+		}
+
+		responseStores[i] = Store{
+			ID:          s.ID,
+			Title:       s.Title,
+			Description: description,
+			PickUpTime:  pickupTime,
+			Distance:    distance,
+			Price:       s.Price,
+			ImageURL:    s.ImageURL,
+			Rating:      s.Rating,
+			IsSaved:     true,
+			Latitude:    s.Latitude,
+			Longitude:   s.Longitude,
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"favorites": stores,
+		"favorites": responseStores,
 	})
 }

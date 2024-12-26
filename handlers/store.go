@@ -8,13 +8,15 @@ import (
 	"savor-server/models"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx/types"
+	"github.com/lib/pq"
 )
 
 func GetStoreDetail(c *gin.Context) {
 	storeID := c.Param("id")
 
-	var store models.Store
-	err := db.DB.Get(&store, `
+	var modelStore models.Store
+	err := db.DB.Get(&modelStore, `
 		SELECT s.*, 
 			   array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
 		FROM stores s
@@ -22,7 +24,6 @@ func GetStoreDetail(c *gin.Context) {
 		WHERE s.id = $1
 		GROUP BY s.id
 	`, storeID)
-
 
 	if err != nil {
 		log.Println("Error fetching store:", err)
@@ -41,13 +42,90 @@ func GetStoreDetail(c *gin.Context) {
 		)
 	`, userID, storeID)
 
-	store.IsSaved = saved
-	c.JSON(http.StatusOK, store)
+	// Convert to response format
+	description := ""
+	if modelStore.Description.Valid {
+		description = modelStore.Description.String
+	}
+
+	pickupTime := ""
+	if modelStore.PickupTime.Valid {
+		pickupTime = modelStore.PickupTime.String
+	}
+
+	distance := "0 km"
+	if modelStore.Distance != nil {
+		distance = *modelStore.Distance
+	}
+
+	phone := ""
+	if modelStore.Phone.Valid {
+		phone = modelStore.Phone.String
+	}
+
+	avatarURL := ""
+	if modelStore.AvatarURL.Valid {
+		avatarURL = modelStore.AvatarURL.String
+	}
+
+	responseStore := struct {
+		ID            string         `json:"id"`
+		Title         string         `json:"title"`
+		Description   string         `json:"description"`
+		PickupTime    string         `json:"pickUpTime"`
+		Distance      string         `json:"distance"`
+		Price         float64        `json:"price"`
+		OriginalPrice float64        `json:"originalPrice"`
+		BackgroundURL string         `json:"backgroundUrl"`
+		AvatarURL     string         `json:"avatarUrl"`
+		ImageURL      string         `json:"imageUrl"`
+		Rating        float64        `json:"rating"`
+		Reviews       int            `json:"reviews"`
+		Address       string         `json:"address"`
+		City          string         `json:"city"`
+		State         string         `json:"state"`
+		ZipCode       string         `json:"zipCode"`
+		Phone         string         `json:"phone"`
+		ItemsLeft     int            `json:"itemsLeft"`
+		Latitude      float64        `json:"latitude"`
+		Longitude     float64        `json:"longitude"`
+		Highlights    pq.StringArray `json:"highlights"`
+		IsSaved       bool           `json:"isSaved"`
+		StoreType     string         `json:"storeType"`
+		BusinessHours types.JSONText `json:"businessHours"`
+	}{
+		ID:            modelStore.ID,
+		Title:         modelStore.Title,
+		Description:   description,
+		PickupTime:    pickupTime,
+		Distance:      distance,
+		Price:         modelStore.Price,
+		OriginalPrice: modelStore.OriginalPrice,
+		BackgroundURL: modelStore.BackgroundURL,
+		AvatarURL:     avatarURL,
+		ImageURL:      modelStore.ImageURL,
+		Rating:        modelStore.Rating,
+		Reviews:       modelStore.Reviews,
+		Address:       modelStore.Address,
+		City:          modelStore.City,
+		State:         modelStore.State,
+		ZipCode:       modelStore.ZipCode,
+		Phone:         phone,
+		ItemsLeft:     modelStore.ItemsLeft,
+		Latitude:      modelStore.Latitude,
+		Longitude:     modelStore.Longitude,
+		Highlights:    modelStore.Highlights,
+		IsSaved:       saved,
+		StoreType:     modelStore.StoreType,
+		BusinessHours: modelStore.BusinessHours,
+	}
+
+	c.JSON(http.StatusOK, responseStore)
 }
 
 func ToggleSaveStore(c *gin.Context) {
 	userID := c.GetString("user_id")
-	
+
 	// Log all headers to see if Authorization is present
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -111,4 +189,4 @@ func ToggleSaveStore(c *gin.Context) {
 		"isSaved": !isSaved,
 		"message": message,
 	})
-} 
+}

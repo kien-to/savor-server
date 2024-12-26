@@ -54,7 +54,6 @@ func GetHomePageData(c *gin.Context) {
 		return
 	}
 
-	// userID := c.GetString("user_id")
 	lat := c.Query("latitude")
 	lng := c.Query("longitude")
 
@@ -68,8 +67,13 @@ func GetHomePageData(c *gin.Context) {
 		SELECT 
 			id, title, description, pickup_time, 
 			COALESCE(distance, '0 km') as distance,
-			price, original_price, background_url, image_url,
-			rating, reviews, address, items_left,
+			COALESCE(price, 0.0) as price, 
+			COALESCE(original_price, 0.0) as original_price, 
+			background_url, image_url,
+			COALESCE(rating, 0.0) as rating, 
+			COALESCE(reviews, 0) as reviews, 
+			address, 
+			COALESCE(items_left, 0) as items_left,
 			latitude, longitude, created_at, updated_at,
 			false as is_saved
 		FROM stores 
@@ -87,7 +91,7 @@ func GetHomePageData(c *gin.Context) {
 	// Split stores into recommended and pickup tomorrow based on pickup time
 	var recommended, tomorrow []models.Store
 	for _, store := range stores {
-		if strings.Contains(strings.ToLower(store.PickupTime), "tomorrow") {
+		if store.PickupTime.Valid && strings.Contains(strings.ToLower(store.PickupTime.String), "tomorrow") {
 			tomorrow = append(tomorrow, store)
 		} else {
 			recommended = append(recommended, store)
@@ -127,8 +131,8 @@ func SearchStores(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	var stores []models.Store
-	err := db.DB.Select(&stores, `
+	var modelStores []models.Store
+	err := db.DB.Select(&modelStores, `
 		WITH saved_status AS (
 			SELECT store_id, true as is_saved 
 			FROM saved_stores 
@@ -154,6 +158,8 @@ func SearchStores(c *gin.Context) {
 		return
 	}
 
+	// Convert model stores to response stores
+	stores := convertToStores(modelStores)
 	c.JSON(http.StatusOK, stores)
 }
 
@@ -165,11 +171,21 @@ func convertToStores(modelStores []models.Store) []Store {
 			distance = *s.Distance
 		}
 
+		description := ""
+		if s.Description.Valid {
+			description = s.Description.String
+		}
+
+		pickupTime := ""
+		if s.PickupTime.Valid {
+			pickupTime = s.PickupTime.String
+		}
+
 		stores[i] = Store{
 			ID:          s.ID,
 			Title:       s.Title,
-			Description: s.Description,
-			PickUpTime:  s.PickupTime,
+			Description: description,
+			PickUpTime:  pickupTime,
 			Distance:    distance,
 			Price:       s.Price,
 			ImageURL:    s.ImageURL,

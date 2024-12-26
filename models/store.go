@@ -21,8 +21,8 @@ type Store struct {
 	ID            string         `json:"id" db:"id"`
 	OwnerID       string         `json:"ownerId" db:"owner_id"`
 	Title         string         `json:"title" db:"title"`
-	Description   string         `json:"description" db:"description"`
-	PickupTime    string         `json:"pickUpTime" db:"pickup_time"`
+	Description   sql.NullString `json:"description" db:"description"`
+	PickupTime    sql.NullString `json:"pickUpTime" db:"pickup_time"`
 	Distance      *string        `json:"distance" db:"distance"`
 	Price         float64        `json:"price" db:"price"`
 	OriginalPrice float64        `json:"originalPrice" db:"original_price"`
