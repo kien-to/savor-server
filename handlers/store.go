@@ -68,6 +68,21 @@ func GetStoreDetail(c *gin.Context) {
 		avatarURL = modelStore.AvatarURL.String
 	}
 
+	city := ""
+	if modelStore.City.Valid {
+		city = modelStore.City.String
+	}
+
+	state := ""
+	if modelStore.State.Valid {
+		state = modelStore.State.String
+	}
+
+	zipCode := ""
+	if modelStore.ZipCode.Valid {
+		zipCode = modelStore.ZipCode.String
+	}
+
 	responseStore := struct {
 		ID            string         `json:"id"`
 		Title         string         `json:"title"`
@@ -107,9 +122,9 @@ func GetStoreDetail(c *gin.Context) {
 		Rating:        modelStore.Rating,
 		Reviews:       modelStore.Reviews,
 		Address:       modelStore.Address,
-		City:          modelStore.City,
-		State:         modelStore.State,
-		ZipCode:       modelStore.ZipCode,
+		City:          city,
+		State:         state,
+		ZipCode:       zipCode,
 		Phone:         phone,
 		ItemsLeft:     modelStore.ItemsLeft,
 		Latitude:      modelStore.Latitude,

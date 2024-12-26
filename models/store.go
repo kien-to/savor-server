@@ -32,9 +32,10 @@ type Store struct {
 	Rating        float64        `json:"rating" db:"rating"`
 	Reviews       int            `json:"reviews" db:"reviews"`
 	Address       string         `json:"address" db:"address"`
-	City          string         `json:"city" db:"city"`
-	State         string         `json:"state" db:"state"`
-	ZipCode       string         `json:"zipCode" db:"zip_code"`
+	City          sql.NullString `json:"city" db:"city"`
+	State         sql.NullString `json:"state" db:"state"`
+	ZipCode       sql.NullString `json:"zipCode" db:"zip_code"`
+	Country       sql.NullString `json:"country" db:"country"`
 	Phone         sql.NullString `json:"phone" db:"phone"`
 	ItemsLeft     int            `json:"itemsLeft" db:"items_left"`
 	Latitude      float64        `json:"latitude" db:"latitude"`

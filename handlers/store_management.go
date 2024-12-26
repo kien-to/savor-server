@@ -29,6 +29,10 @@ type StoreResponse struct {
 	Description string  `json:"description"`
 	StoreType   string  `json:"storeType"`
 	Address     string  `json:"address"`
+	City        string  `json:"city"`
+	State       string  `json:"state"`
+	ZipCode     string  `json:"zipCode"`
+	Country     string  `json:"country"`
 	Phone       string  `json:"phone"`
 	Latitude    float64 `json:"latitude"`
 	Longitude   float64 `json:"longitude"`
@@ -107,6 +111,10 @@ func GetMyStore(c *gin.Context) {
             description,
             store_type,
             address,
+            city,
+            state,
+            zip_code,
+            country,
             phone,
             latitude,
             longitude
@@ -135,12 +143,36 @@ func GetMyStore(c *gin.Context) {
 		phone = modelStore.Phone.String
 	}
 
+	city := ""
+	if modelStore.City.Valid {
+		city = modelStore.City.String
+	}
+
+	state := ""
+	if modelStore.State.Valid {
+		state = modelStore.State.String
+	}
+
+	zipCode := ""
+	if modelStore.ZipCode.Valid {
+		zipCode = modelStore.ZipCode.String
+	}
+
+	country := ""
+	if modelStore.Country.Valid {
+		country = modelStore.Country.String
+	}
+
 	response := StoreResponse{
 		ID:          modelStore.ID,
 		Title:       modelStore.Title,
 		Description: description,
 		StoreType:   modelStore.StoreType,
 		Address:     modelStore.Address,
+		City:        city,
+		State:       state,
+		ZipCode:     zipCode,
+		Country:     country,
 		Phone:       phone,
 		Latitude:    modelStore.Latitude,
 		Longitude:   modelStore.Longitude,
