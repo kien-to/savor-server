@@ -83,6 +83,31 @@ func GetStoreDetail(c *gin.Context) {
 		zipCode = modelStore.ZipCode.String
 	}
 
+	itemsLeft := 0
+	if modelStore.ItemsLeft.Valid {
+		itemsLeft = int(modelStore.ItemsLeft.Int64)
+	}
+
+	reviews := 0
+	if modelStore.Reviews.Valid {
+		reviews = int(modelStore.Reviews.Int64)
+	}
+
+	rating := 0.0
+	if modelStore.Rating.Valid {
+		rating = modelStore.Rating.Float64
+	}
+
+	originalPrice := 0.0
+	if modelStore.OriginalPrice.Valid {
+		originalPrice = modelStore.OriginalPrice.Float64
+	}
+
+	price := 0.0
+	if modelStore.Price.Valid {
+		price = modelStore.Price.Float64
+	}
+
 	responseStore := struct {
 		ID            string         `json:"id"`
 		Title         string         `json:"title"`
@@ -114,19 +139,19 @@ func GetStoreDetail(c *gin.Context) {
 		Description:   description,
 		PickupTime:    pickupTime,
 		Distance:      distance,
-		Price:         modelStore.Price,
-		OriginalPrice: modelStore.OriginalPrice,
+		Price:         price,
+		OriginalPrice: originalPrice,
 		BackgroundURL: modelStore.BackgroundURL,
 		AvatarURL:     avatarURL,
 		ImageURL:      modelStore.ImageURL,
-		Rating:        modelStore.Rating,
-		Reviews:       modelStore.Reviews,
+		Rating:        rating,
+		Reviews:       reviews,
 		Address:       modelStore.Address,
 		City:          city,
 		State:         state,
 		ZipCode:       zipCode,
 		Phone:         phone,
-		ItemsLeft:     modelStore.ItemsLeft,
+		ItemsLeft:     itemsLeft,
 		Latitude:      modelStore.Latitude,
 		Longitude:     modelStore.Longitude,
 		Highlights:    modelStore.Highlights,

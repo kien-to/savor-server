@@ -11,16 +11,18 @@ import (
 )
 
 type BusinessDetails struct {
-	StoreName string  `json:"businessName" binding:"required"`
-	StoreType string  `json:"storeType" binding:"required"`
-	Street    string  `json:"street" binding:"required"`
-	City      string  `json:"city" binding:"required"`
-	State     string  `json:"state" binding:"required"`
-	ZipCode   string  `json:"zipCode" binding:"required"`
-	Country   string  `json:"country" binding:"required"`
-	Phone     string  `json:"phone" binding:"required"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
+	StoreName     string  `json:"businessName" binding:"required"`
+	StoreType     string  `json:"storeType" binding:"required"`
+	Street        string  `json:"street" binding:"required"`
+	City          string  `json:"city" binding:"required"`
+	State         string  `json:"state" binding:"required"`
+	ZipCode       string  `json:"zipCode" binding:"required"`
+	Country       string  `json:"country" binding:"required"`
+	Phone         string  `json:"phone" binding:"required"`
+	Latitude      float64 `json:"latitude"`
+	Longitude     float64 `json:"longitude"`
+	BackgroundUrl string  `json:"backgroundUrl" binding:"required"`
+	ImageUrl      string  `json:"imageUrl" binding:"required"`
 }
 
 type StoreResponse struct {
@@ -66,16 +68,22 @@ func CreateStore(c *gin.Context) {
 		details.Country,
 	)
 
+	// backgroundUrl := "https://vietnamnomad.com/wp-content/uploads/2023/05/What-is-bun-dau-mam-tom.jpg"
+	// imageUrl := "https://vietnamnomad.com/wp-content/uploads/2023/05/What-is-bun-dau-mam-tom.jpg"
+
+	// price := 5
+
 	var storeID string
 	err = tx.QueryRow(`
         INSERT INTO stores (
             owner_id, title, store_type, address, city, state, zip_code,
-            phone, latitude, longitude, description
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            phone, latitude, longitude, description, background_url, image_url, price
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id`,
 		userID, details.StoreName, details.StoreType, fullAddress,
 		details.City, details.State, details.ZipCode,
 		details.Phone, details.Latitude, details.Longitude, sql.NullString{},
+		details.BackgroundUrl, details.ImageUrl, 5,
 	).Scan(&storeID)
 
 	if err != nil {

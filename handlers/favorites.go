@@ -99,15 +99,25 @@ func GetFavorites(c *gin.Context) {
 			distance = *s.Distance
 		}
 
+		price := 0.0
+		if s.Price.Valid {
+			price = s.Price.Float64
+		}
+
+		rating := 0.0
+		if s.Rating.Valid {
+			rating = s.Rating.Float64
+		}
+
 		responseStores[i] = Store{
 			ID:          s.ID,
 			Title:       s.Title,
 			Description: description,
 			PickUpTime:  pickupTime,
 			Distance:    distance,
-			Price:       s.Price,
+			Price:       price,
 			ImageURL:    s.ImageURL,
-			Rating:      s.Rating,
+			Rating:      rating,
 			IsSaved:     true,
 			Latitude:    s.Latitude,
 			Longitude:   s.Longitude,
