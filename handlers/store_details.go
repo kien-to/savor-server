@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"savor-server/db"
 	"savor-server/models"
@@ -115,6 +116,29 @@ func UpdatePickupSchedule(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Transaction failed"})
 		return
+	}
+
+	// Update store pickup time with the first enabled schedule
+	enabledSchedule := ""
+	for _, s := range req.Schedule {
+		if s.Enabled {
+			enabledSchedule = fmt.Sprintf("Pick up %s %s - %s", s.Day, s.StartTime, s.EndTime)
+			break
+		}
+	}
+
+	if enabledSchedule != "" {
+		_, err = tx.Exec(`
+            UPDATE stores 
+            SET pickup_time = $1
+            WHERE owner_id = $2`,
+			enabledSchedule, userID)
+
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update store pickup time"})
+			return
+		}
 	}
 
 	// Delete existing schedule
