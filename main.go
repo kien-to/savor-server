@@ -159,6 +159,9 @@ func main() {
 		storeManagementGroup.POST("/create", handlers.CreateStore)
 		storeManagementGroup.GET("/my-store", handlers.GetMyStore)
 		storeManagementGroup.PUT("/update", handlers.UpdateStore)
+		storeManagementGroup.POST("/toggle-selling", handlers.ToggleStoreSelling)
+		storeManagementGroup.POST("/bag-details", handlers.UpdateBagDetails)
+		storeManagementGroup.POST("/pickup-schedule", handlers.UpdatePickupSchedule)
 	}
 
 	r.Run(":8080")

@@ -26,7 +26,9 @@ type PayAtStoreRequest struct {
 func CreateReservation(c *gin.Context) {
 	var req ReservationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid request parameters"})
+		fmt.Printf("Request binding error: %+v\n", err)
+		fmt.Printf("Received request body: %+v\n", req)
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -47,6 +49,7 @@ func CreateReservation(c *gin.Context) {
 
 	pi, err := paymentintent.New(params)
 	if err != nil {
+		fmt.Println("Failed to create payment intent", err)
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -63,6 +66,7 @@ func ConfirmReservation(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Println("Invalid request parameters", err)
 		c.JSON(400, gin.H{"error": "Invalid request parameters"})
 		return
 	}
@@ -141,19 +145,21 @@ func ConfirmPayAtStore(c *gin.Context) {
 	// Get the payment intent to retrieve metadata
 	pi, err := paymentintent.Get(req.PaymentIntentId, nil)
 	if err != nil {
+		fmt.Println("Failed to retrieve payment intent", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve payment intent"})
 		return
 	}
 
 	userID := c.GetString("user_id")
 	storeID := pi.Metadata["storeId"]
-	fmt.Println("storeID", storeID)
+	// fmt.Println("storeID", storeID)
 	quantity := parseInt(pi.Metadata["quantity"])
 	pickupTime := pi.Metadata["pickup_time"]
 	// Get store price for total amount calculation
 	var storePrice float64
 	err = db.DB.Get(&storePrice, "SELECT price FROM stores WHERE id = $1", storeID)
 	if err != nil {
+		fmt.Println("Failed to get store details", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get store details"})
 		return
 	}
@@ -168,6 +174,7 @@ func ConfirmPayAtStore(c *gin.Context) {
 		userID, storeID, quantity, totalAmount, "pending", "pay_at_store_"+req.PaymentIntentId, pickupTime)
 
 	if err != nil {
+		fmt.Println("Failed to create reservation", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation"})
 		return
 	}

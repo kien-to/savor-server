@@ -42,6 +42,7 @@ type Store struct {
 	Longitude     float64         `json:"longitude" db:"longitude"`
 	Highlights    pq.StringArray  `json:"highlights" db:"highlights"`
 	IsSaved       bool            `json:"isSaved" db:"is_saved"`
+	IsSelling     bool            `json:"isSelling" db:"is_selling"`
 	StoreType     string          `json:"storeType" db:"store_type"`
 	BusinessHours types.JSONText  `json:"businessHours" db:"business_hours"`
 	CreatedAt     time.Time       `json:"createdAt" db:"created_at"`

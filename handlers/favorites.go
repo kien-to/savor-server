@@ -65,14 +65,11 @@ func GetFavorites(c *gin.Context) {
 	var modelStores []models.Store
 	err := db.DB.Select(&modelStores, `
         SELECT s.*, 
-               array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights,
-               true as is_saved
+               CASE WHEN ss.store_id IS NOT NULL THEN true ELSE false END as is_saved
         FROM stores s
-        INNER JOIN saved_stores ss ON s.id = ss.store_id
-        LEFT JOIN store_highlights sh ON s.id = sh.store_id
-        WHERE ss.user_id = $1
-        GROUP BY s.id
-    `, userID)
+        INNER JOIN saved_stores ss ON s.id = ss.store_id 
+        WHERE ss.user_id = $1 AND s.is_selling = true
+        ORDER BY ss.created_at DESC`, userID)
 
 	if err != nil {
 		log.Printf("Error fetching favorites: %v", err)

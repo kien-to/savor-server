@@ -77,13 +77,13 @@ func CreateStore(c *gin.Context) {
 	err = tx.QueryRow(`
         INSERT INTO stores (
             owner_id, title, store_type, address, city, state, zip_code,
-            phone, latitude, longitude, description, background_url, image_url, price
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            phone, latitude, longitude, description, background_url, image_url, price, is_selling
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING id`,
 		userID, details.StoreName, details.StoreType, fullAddress,
 		details.City, details.State, details.ZipCode,
 		details.Phone, details.Latitude, details.Longitude, sql.NullString{},
-		details.BackgroundUrl, details.ImageUrl, 5,
+		details.BackgroundUrl, details.ImageUrl, 5, false,
 	).Scan(&storeID)
 
 	if err != nil {
@@ -224,4 +224,33 @@ func UpdateStore(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"id": storeID})
+}
+
+func ToggleStoreSelling(c *gin.Context) {
+	userID := c.GetString("user_id")
+
+	var req struct {
+		IsSelling bool `json:"is_selling"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	_, err := db.DB.Exec(`
+		UPDATE stores 
+		SET is_selling = $1 
+		WHERE owner_id = $2`,
+		req.IsSelling, userID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update store status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Store status updated successfully",
+		"is_selling": req.IsSelling,
+	})
 }

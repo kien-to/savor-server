@@ -77,6 +77,7 @@ func GetHomePageData(c *gin.Context) {
 			latitude, longitude, created_at, updated_at,
 			false as is_saved
 		FROM stores 
+		WHERE is_selling = true
 		ORDER BY rating DESC 
 		LIMIT 20
 	`)
