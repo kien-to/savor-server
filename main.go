@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/joho/godotenv"
 
 	"savor-server/config"
@@ -94,9 +96,13 @@ func main() {
 	r := gin.Default()
 	r.Use(gin.Logger(), gin.Recovery())
 
+	// Initialize session store
+	store := cookie.NewStore([]byte("secret"))
+	r.Use(sessions.Sessions("savor_session", store))
+
 	// Add CORS middleware
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
 		AllowHeaders:     []string{"Origin", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -151,6 +157,9 @@ func main() {
 	reservationsGroup := r.Group("/api/reservations")
 	{
 		reservationsGroup.GET("", middleware.AuthMiddleware(authClient), handlers.GetUserReservations)
+		reservationsGroup.GET("/demo", handlers.GetDemoReservations)
+		reservationsGroup.GET("/session", handlers.GetSessionReservations)
+		reservationsGroup.POST("/guest", handlers.CreateGuestReservation)
 	}
 
 	storeManagementGroup := r.Group("/api/store-management")

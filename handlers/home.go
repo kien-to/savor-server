@@ -13,17 +13,22 @@ import (
 )
 
 type Store struct {
-	ID          string  `json:"id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	PickUpTime  string  `json:"pickUpTime"`
-	Distance    string  `json:"distance"`
-	Price       float64 `json:"price"`
-	ImageURL    string  `json:"imageUrl"`
-	Rating      float64 `json:"rating"`
-	IsSaved     bool    `json:"isSaved"`
-	Latitude    float64 `json:"latitude"`
-	Longitude   float64 `json:"longitude"`
+	ID              string   `json:"id"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	PickUpTime      string   `json:"pickUpTime"`
+	Distance        string   `json:"distance"`
+	Price           float64  `json:"price"`
+	OriginalPrice   float64  `json:"originalPrice"`
+	DiscountedPrice float64  `json:"discountedPrice"`
+	ImageURL        string   `json:"imageUrl"`
+	Rating          float64  `json:"rating"`
+	IsSaved         bool     `json:"isSaved"`
+	Latitude        float64  `json:"latitude"`
+	Longitude       float64  `json:"longitude"`
+	ReviewsCount    int64    `json:"reviewsCount"`
+	BagsAvailable   int64    `json:"bagsAvailable"`
+	Highlights      []string `json:"highlights"`
 }
 
 type HomePageResponse struct {
@@ -64,23 +69,61 @@ func GetHomePageData(c *gin.Context) {
 
 	var stores []models.Store
 	err := db.DB.Select(&stores, `
+		WITH saved_status AS (
+			SELECT store_id, true as is_saved 
+			FROM saved_stores 
+			WHERE user_id = $1
+		)
 		SELECT 
-			id, title, description, pickup_time, 
-			COALESCE(distance, '0 km') as distance,
-			COALESCE(price, 0.0) as price, 
-			COALESCE(original_price, 0.0) as original_price, 
-			background_url, image_url,
-			COALESCE(rating, 0.0) as rating, 
-			COALESCE(reviews, 0) as reviews, 
-			address, 
-			COALESCE(items_left, 0) as items_left,
-			latitude, longitude, created_at, updated_at,
-			false as is_saved
-		FROM stores 
-		WHERE is_selling = true
-		ORDER BY rating DESC 
+			s.id, 
+			s.title, 
+			s.description, 
+			s.pickup_time,
+			COALESCE(s.distance, '0 km') as distance,
+			COALESCE(s.price, 0.0) as price,
+			COALESCE(s.original_price, s.price) as original_price,
+			COALESCE(s.discounted_price, s.price) as discounted_price,
+			s.background_url,
+			s.image_url,
+			COALESCE(s.rating, 0.0) as rating,
+			COALESCE(s.reviews, 0) as reviews,
+			COALESCE(s.reviews_count, s.reviews) as reviews_count,
+			s.address,
+			COALESCE(s.items_left, 0) as items_left,
+			COALESCE(s.bags_available, s.items_left) as bags_available,
+			s.latitude,
+			s.longitude,
+			s.is_selling,
+			COALESCE(ss.is_saved, false) as is_saved,
+			array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
+		FROM stores s
+		LEFT JOIN saved_status ss ON s.id = ss.store_id
+		LEFT JOIN store_highlights sh ON s.id = sh.store_id
+		WHERE s.is_selling = true
+		GROUP BY 
+			s.id, 
+			s.title,
+			s.description,
+			s.pickup_time,
+			s.distance,
+			s.price,
+			s.original_price,
+			s.discounted_price,
+			s.background_url,
+			s.image_url,
+			s.rating,
+			s.reviews,
+			s.reviews_count,
+			s.address,
+			s.items_left,
+			s.bags_available,
+			s.latitude,
+			s.longitude,
+			s.is_selling,
+			ss.is_saved
+		ORDER BY s.rating DESC 
 		LIMIT 20
-	`)
+	`, c.GetString("user_id"))
 
 	if err != nil {
 		fmt.Println(err)
@@ -139,17 +182,56 @@ func SearchStores(c *gin.Context) {
 			FROM saved_stores 
 			WHERE user_id = $1
 		)
-		SELECT s.*, 
-			   array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights,
-			   COALESCE(ss.is_saved, false) as is_saved
+		SELECT 
+			s.id, 
+			s.title, 
+			s.description, 
+			s.pickup_time,
+			COALESCE(s.distance, '0 km') as distance,
+			COALESCE(s.price, 0.0) as price,
+			COALESCE(s.original_price, s.price) as original_price,
+			COALESCE(s.discounted_price, s.price) as discounted_price,
+			s.background_url,
+			s.image_url,
+			COALESCE(s.rating, 0.0) as rating,
+			COALESCE(s.reviews, 0) as reviews,
+			COALESCE(s.reviews_count, s.reviews) as reviews_count,
+			s.address,
+			COALESCE(s.items_left, 0) as items_left,
+			COALESCE(s.bags_available, s.items_left) as bags_available,
+			s.latitude,
+			s.longitude,
+			s.is_selling,
+			COALESCE(ss.is_saved, false) as is_saved,
+			array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
 		FROM stores s
-		LEFT JOIN store_highlights sh ON s.id = sh.store_id
 		LEFT JOIN saved_status ss ON s.id = ss.store_id
+		LEFT JOIN store_highlights sh ON s.id = sh.store_id
 		WHERE 
 			s.title ILIKE $2 OR 
 			s.description ILIKE $2 OR 
 			s.address ILIKE $2
-		GROUP BY s.id, ss.is_saved
+		GROUP BY 
+			s.id, 
+			s.title,
+			s.description,
+			s.pickup_time,
+			s.distance,
+			s.price,
+			s.original_price,
+			s.discounted_price,
+			s.background_url,
+			s.image_url,
+			s.rating,
+			s.reviews,
+			s.reviews_count,
+			s.address,
+			s.items_left,
+			s.bags_available,
+			s.latitude,
+			s.longitude,
+			s.is_selling,
+			ss.is_saved
 		ORDER BY s.rating DESC
 		LIMIT 20
 	`, userID, "%"+query+"%")
@@ -187,23 +269,48 @@ func convertToStores(modelStores []models.Store) []Store {
 			price = s.Price.Float64
 		}
 
+		originalPrice := price
+		if s.OriginalPrice.Valid {
+			originalPrice = s.OriginalPrice.Float64
+		}
+
+		discountedPrice := price
+		if s.DiscountedPrice.Valid {
+			discountedPrice = s.DiscountedPrice.Float64
+		}
+
 		rating := 0.0
 		if s.Rating.Valid {
 			rating = s.Rating.Float64
 		}
 
+		reviewsCount := int64(0)
+		if s.ReviewsCount.Valid {
+			reviewsCount = s.ReviewsCount.Int64
+		}
+
+		bagsAvailable := int64(0)
+		if s.BagsAvailable.Valid {
+			bagsAvailable = s.BagsAvailable.Int64
+		}
+
 		stores[i] = Store{
-			ID:          s.ID,
-			Title:       s.Title,
-			Description: description,
-			PickUpTime:  pickupTime,
-			Distance:    distance,
-			Price:       price,
-			ImageURL:    s.ImageURL,
-			Rating:      rating,
-			IsSaved:     s.IsSaved,
-			Latitude:    s.Latitude,
-			Longitude:   s.Longitude,
+			ID:              s.ID,
+			Title:           s.Title,
+			Description:     description,
+			PickUpTime:      pickupTime,
+			Distance:        distance,
+			Price:           price,
+			OriginalPrice:   originalPrice,
+			DiscountedPrice: discountedPrice,
+			ImageURL:        s.ImageURL,
+			Rating:          rating,
+			ReviewsCount:    reviewsCount,
+			BagsAvailable:   bagsAvailable,
+			IsSaved:         s.IsSaved,
+			Latitude:        s.Latitude,
+			Longitude:       s.Longitude,
+			Highlights:      s.Highlights,
 		}
 	}
 	return stores
