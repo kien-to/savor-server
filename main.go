@@ -159,7 +159,9 @@ func main() {
 		reservationsGroup.GET("", middleware.AuthMiddleware(authClient), handlers.GetUserReservations)
 		reservationsGroup.GET("/demo", handlers.GetDemoReservations)
 		reservationsGroup.GET("/session", handlers.GetSessionReservations)
+		reservationsGroup.GET("/guest", handlers.GetGuestReservations)
 		reservationsGroup.POST("/guest", handlers.CreateGuestReservation)
+		reservationsGroup.DELETE("/:id", handlers.DeleteReservation)
 	}
 
 	storeManagementGroup := r.Group("/api/store-management")

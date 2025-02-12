@@ -1,13 +1,22 @@
 package handlers
 
 import (
+	"encoding/gob"
 	"fmt"
+	"log"
 	"net/http"
 	"savor-server/db"
 	"time"
 
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
+
+func init() {
+	// Register types with gob
+	gob.Register([]ReservationResponse{})
+	gob.Register(ReservationResponse{})
+}
 
 type ReservationResponse struct {
 	ID              string    `db:"id" json:"id"`
@@ -120,12 +129,14 @@ type GuestReservationRequest struct {
 func CreateGuestReservation(c *gin.Context) {
 	var req GuestReservationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Printf("Failed to bind JSON: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
 
 	// Validate required fields
 	if req.StoreID == "" || req.Quantity < 1 || (req.Email == "" && req.Phone == "") {
+		fmt.Printf("Invalid request data: %v\n", req)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required fields"})
 		return
 	}
@@ -144,25 +155,173 @@ func CreateGuestReservation(c *gin.Context) {
 		CreatedAt:   time.Now(),
 	}
 
-	// Get existing reservations from session or initialize new slice
-	session := c.MustGet("session").(map[string]interface{})
+	// Get session
+	session := sessions.Default(c)
 	var reservations []ReservationResponse
-	if existingReservations, ok := session["reservations"].([]ReservationResponse); ok {
-		reservations = existingReservations
+
+	// Get existing reservations from session
+	if sessionReservations := session.Get("reservations"); sessionReservations != nil {
+		reservations = sessionReservations.([]ReservationResponse)
 	}
 
 	// Add new reservation
 	reservations = append(reservations, reservation)
-	session["reservations"] = reservations
+
+	// Save to session
+	session.Set("reservations", reservations)
+	if err := session.Save(); err != nil {
+		fmt.Printf("Failed to save reservation: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reservation"})
+		return
+	}
 
 	c.JSON(http.StatusOK, reservation)
 }
 
 func GetSessionReservations(c *gin.Context) {
-	session := c.MustGet("session").(map[string]interface{})
-	if reservations, ok := session["reservations"].([]ReservationResponse); ok {
+	session := sessions.Default(c)
+	if reservations := session.Get("reservations"); reservations != nil {
 		c.JSON(http.StatusOK, reservations)
 		return
 	}
 	c.JSON(http.StatusOK, []ReservationResponse{})
+}
+
+func DeleteReservation(c *gin.Context) {
+	reservationID := c.Param("id")
+	userID := c.GetString("user_id")
+
+	// For guest users, check session
+	if userID == "" {
+		session := sessions.Default(c)
+		if sessionReservations := session.Get("reservations"); sessionReservations != nil {
+			reservations, ok := sessionReservations.([]ReservationResponse)
+			if !ok {
+				log.Printf("Failed to cast session reservations to []ReservationResponse: %v", sessionReservations)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid session data"})
+				return
+			}
+
+			newReservations := make([]ReservationResponse, 0)
+			for _, r := range reservations {
+				if r.ID != reservationID {
+					newReservations = append(newReservations, r)
+				}
+			}
+
+			session.Set("reservations", newReservations)
+
+			if err := session.Save(); err != nil {
+				log.Printf("Failed to save session after deleting reservation: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
+				return
+			}
+		} else {
+			log.Printf("No reservations found in session for deletion request: %s", reservationID)
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Reservation deleted"})
+		return
+	}
+
+	// For logged-in users, delete from database
+	log.Printf("Attempting to delete reservation %s for user %s", reservationID, userID)
+
+	result, err := db.DB.Exec(`
+		DELETE FROM reservations 
+		WHERE id = $1 AND user_id = $2
+		AND (pickup_time IS NULL OR pickup_time > NOW())
+	`, reservationID, userID)
+
+	if err != nil {
+		log.Printf("Database error deleting reservation %s: %v", reservationID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete reservation"})
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("Error checking rows affected for reservation %s: %v", reservationID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to confirm deletion"})
+		return
+	}
+
+	if rowsAffected == 0 {
+		// Check if the reservation exists but is expired
+		var exists bool
+		err = db.DB.QueryRow(`
+			SELECT EXISTS(
+				SELECT 1 FROM reservations 
+				WHERE id = $1 AND user_id = $2 AND pickup_time <= NOW()
+			)
+		`, reservationID, userID).Scan(&exists)
+
+		if err != nil {
+			log.Printf("Error checking if reservation %s is expired: %v", reservationID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check reservation status"})
+			return
+		}
+
+		if exists {
+			log.Printf("Attempted to delete expired reservation %s", reservationID)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete expired reservation"})
+			return
+		}
+
+		log.Printf("Reservation %s not found for user %s", reservationID, userID)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
+		return
+	}
+
+	log.Printf("Successfully deleted reservation %s for user %s", reservationID, userID)
+	c.JSON(http.StatusOK, gin.H{"message": "Reservation deleted"})
+}
+
+// GetGuestReservations handles fetching reservations for guest users from their session
+func GetGuestReservations(c *gin.Context) {
+	session := sessions.Default(c)
+	sessionReservations := session.Get("reservations")
+
+	if sessionReservations == nil {
+		// Return empty array instead of null
+		c.JSON(http.StatusOK, []ReservationResponse{})
+		return
+	}
+
+	reservations, ok := sessionReservations.([]ReservationResponse)
+	if !ok {
+		log.Printf("Failed to cast session reservations to []ReservationResponse: %v", sessionReservations)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid session data"})
+		return
+	}
+
+	// Filter out expired reservations
+	currentTime := time.Now()
+	activeReservations := make([]ReservationResponse, 0)
+	for _, res := range reservations {
+		if res.PickupTime == nil {
+			activeReservations = append(activeReservations, res)
+			continue
+		}
+
+		pickupTime, err := time.Parse(time.RFC3339, *res.PickupTime)
+		if err != nil {
+			log.Printf("Error parsing pickup time for reservation %s: %v", res.ID, err)
+			continue
+		}
+
+		if pickupTime.After(currentTime) {
+			activeReservations = append(activeReservations, res)
+		}
+	}
+
+	// Update session with only active reservations
+	if len(activeReservations) != len(reservations) {
+		session.Set("reservations", activeReservations)
+		if err := session.Save(); err != nil {
+			log.Printf("Error saving session after filtering expired reservations: %v", err)
+		}
+	}
+
+	c.JSON(http.StatusOK, activeReservations)
 }
