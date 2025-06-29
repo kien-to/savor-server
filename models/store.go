@@ -43,6 +43,7 @@ type Store struct {
 	BagsAvailable   sql.NullInt64   `json:"bagsAvailable" db:"bags_available"`
 	Latitude        float64         `json:"latitude" db:"latitude"`
 	Longitude       float64         `json:"longitude" db:"longitude"`
+	GoogleMapsURL   sql.NullString  `json:"googleMapsUrl" db:"google_maps_url"`
 	Highlights      pq.StringArray  `json:"highlights" db:"highlights"`
 	IsSaved         bool            `json:"isSaved" db:"is_saved"`
 	IsSelling       bool            `json:"isSelling" db:"is_selling"`

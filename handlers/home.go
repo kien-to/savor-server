@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"savor-server/db"
 	"savor-server/models"
+	"savor-server/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +28,7 @@ type Store struct {
 	IsSaved         bool     `json:"isSaved"`
 	Latitude        float64  `json:"latitude"`
 	Longitude       float64  `json:"longitude"`
+	GoogleMapsURL   string   `json:"googleMapsUrl"`
 	ReviewsCount    int64    `json:"reviewsCount"`
 	BagsAvailable   int64    `json:"bagsAvailable"`
 	Highlights      []string `json:"highlights"`
@@ -67,8 +70,20 @@ func GetHomePageData(c *gin.Context) {
 		return
 	}
 
+	userLat, err := strconv.ParseFloat(lat, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid latitude"})
+		return
+	}
+
+	userLng, err := strconv.ParseFloat(lng, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid longitude"})
+		return
+	}
+
 	var stores []models.Store
-	err := db.DB.Select(&stores, `
+	err = db.DB.Select(&stores, `
 		WITH saved_status AS (
 			SELECT store_id, true as is_saved 
 			FROM saved_stores 
@@ -93,6 +108,7 @@ func GetHomePageData(c *gin.Context) {
 			COALESCE(s.bags_available, s.items_left) as bags_available,
 			s.latitude,
 			s.longitude,
+			s.google_maps_url,
 			s.is_selling,
 			COALESCE(ss.is_saved, false) as is_saved,
 			array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
@@ -119,6 +135,7 @@ func GetHomePageData(c *gin.Context) {
 			s.bags_available,
 			s.latitude,
 			s.longitude,
+			s.google_maps_url,
 			s.is_selling,
 			ss.is_saved
 		ORDER BY s.rating DESC 
@@ -130,6 +147,19 @@ func GetHomePageData(c *gin.Context) {
 		log.Printf("Failed to search stores: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stores"})
 		return
+	}
+
+	// Calculate distances using Google Maps API
+	if services.GoogleMaps != nil {
+		for i := range stores {
+			if stores[i].Latitude != 0 && stores[i].Longitude != 0 {
+				distanceResult, err := services.GoogleMaps.CalculateDistance(userLat, userLng, stores[i].Latitude, stores[i].Longitude)
+				if err == nil && distanceResult != nil {
+					distanceStr := distanceResult.Distance
+					stores[i].Distance = &distanceStr
+				}
+			}
+		}
 	}
 
 	// Split stores into recommended and pickup tomorrow based on pickup time
@@ -174,6 +204,26 @@ func SearchStores(c *gin.Context) {
 		return
 	}
 
+	lat := c.Query("latitude")
+	lng := c.Query("longitude")
+
+	userLat := 0.0
+	userLng := 0.0
+	if lat != "" && lng != "" {
+		var err error
+		userLat, err = strconv.ParseFloat(lat, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid latitude"})
+			return
+		}
+
+		userLng, err = strconv.ParseFloat(lng, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid longitude"})
+			return
+		}
+	}
+
 	userID := c.GetString("user_id")
 	var modelStores []models.Store
 	err := db.DB.Select(&modelStores, `
@@ -201,6 +251,7 @@ func SearchStores(c *gin.Context) {
 			COALESCE(s.bags_available, s.items_left) as bags_available,
 			s.latitude,
 			s.longitude,
+			s.google_maps_url,
 			s.is_selling,
 			COALESCE(ss.is_saved, false) as is_saved,
 			array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
@@ -230,6 +281,7 @@ func SearchStores(c *gin.Context) {
 			s.bags_available,
 			s.latitude,
 			s.longitude,
+			s.google_maps_url,
 			s.is_selling,
 			ss.is_saved
 		ORDER BY s.rating DESC
@@ -239,6 +291,19 @@ func SearchStores(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search stores"})
 		return
+	}
+
+	// Calculate distances using Google Maps API if user location is provided
+	if services.GoogleMaps != nil && userLat != 0 && userLng != 0 {
+		for i := range modelStores {
+			if modelStores[i].Latitude != 0 && modelStores[i].Longitude != 0 {
+				distanceResult, err := services.GoogleMaps.CalculateDistance(userLat, userLng, modelStores[i].Latitude, modelStores[i].Longitude)
+				if err == nil && distanceResult != nil {
+					distanceStr := distanceResult.Distance
+					modelStores[i].Distance = &distanceStr
+				}
+			}
+		}
 	}
 
 	// Convert model stores to response stores
@@ -294,6 +359,11 @@ func convertToStores(modelStores []models.Store) []Store {
 			bagsAvailable = s.BagsAvailable.Int64
 		}
 
+		googleMapsURL := ""
+		if s.GoogleMapsURL.Valid {
+			googleMapsURL = s.GoogleMapsURL.String
+		}
+
 		stores[i] = Store{
 			ID:              s.ID,
 			Title:           s.Title,
@@ -310,6 +380,7 @@ func convertToStores(modelStores []models.Store) []Store {
 			IsSaved:         s.IsSaved,
 			Latitude:        s.Latitude,
 			Longitude:       s.Longitude,
+			GoogleMapsURL:   googleMapsURL,
 			Highlights:      s.Highlights,
 		}
 	}

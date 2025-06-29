@@ -16,6 +16,7 @@ require (
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.3
 	google.golang.org/api v0.209.0
+	googlemaps.github.io/maps v1.5.0
 )
 
 require (

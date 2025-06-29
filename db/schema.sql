@@ -21,6 +21,7 @@ CREATE TABLE stores (
     items_left INTEGER,
     latitude DECIMAL(10,8),
     longitude DECIMAL(11,8),
+    google_maps_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     image_url TEXT

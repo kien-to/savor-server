@@ -14,6 +14,7 @@ import (
 	_ "savor-server/docs" // This will be auto-generated
 	"savor-server/handlers"
 	"savor-server/middleware"
+	"savor-server/services"
 
 	"savor-server/db" // Add this import
 
@@ -91,6 +92,9 @@ func main() {
 	}
 	config.InitializeStripe(stripeKey)
 
+	// Initialize Google Maps
+	services.InitializeGoogleMaps()
+
 	// Initialize Gin router with debug mode
 	gin.SetMode(gin.DebugMode)
 	r := gin.Default()
@@ -145,6 +149,14 @@ func main() {
 		storesGroup.GET("/:id", handlers.GetStoreDetail)
 		storesGroup.POST("/:id/toggle-save", middleware.AuthMiddleware(authClient), handlers.ToggleSaveStore)
 		storesGroup.GET("/favorites", middleware.AuthMiddleware(authClient), handlers.GetFavorites)
+	}
+
+	// Maps routes
+	mapsGroup := r.Group("/api/maps")
+	{
+		mapsGroup.GET("/distance", handlers.CalculateDistance)
+		mapsGroup.GET("/directions", handlers.GetDirections)
+		mapsGroup.GET("/stores/:storeId", handlers.GetStoreWithDistance)
 	}
 
 	paymentGroup := r.Group("/api/payment")
