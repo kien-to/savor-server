@@ -36,17 +36,21 @@ In your Railway project dashboard, go to "Variables" and add these environment v
 #### Required Variables:
 
 **Firebase Configuration:**
+To get these values, go to your Firebase Console → Project Settings → Service Accounts → Generate New Private Key
+
 ```
 FIREBASE_PROJECT_ID=your-firebase-project-id
 FIREBASE_PRIVATE_KEY_ID=your-private-key-id
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
 FIREBASE_CLIENT_ID=your-client-id
-FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
-FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
-FIREBASE_AUTH_PROVIDER_X509_CERT_URL=https://www.googleapis.com/oauth2/v1/certs
-FIREBASE_CLIENT_X509_CERT_URL=https://www.googleapis.com/robot/v1/metadata/x509/your-service-account%40your-project.iam.gserviceaccount.com
+FIREBASE_CLIENT_X509_CERT_URL=https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-xxxxx%40your-project.iam.gserviceaccount.com
 ```
+
+**Note:** The following are automatically set to default values but can be overridden:
+- `FIREBASE_AUTH_URI` (defaults to: https://accounts.google.com/o/oauth2/auth)
+- `FIREBASE_TOKEN_URI` (defaults to: https://oauth2.googleapis.com/token)
+- `FIREBASE_AUTH_PROVIDER_X509_CERT_URL` (defaults to: https://www.googleapis.com/oauth2/v1/certs)
 
 **Stripe Configuration:**
 ```
@@ -93,6 +97,39 @@ r.Use(cors.New(cors.Config{
     AllowCredentials: true,
 }))
 ```
+
+## Troubleshooting
+
+### Common Issues:
+
+1. **Firebase Authentication Error:**
+   - Make sure all Firebase environment variables are set correctly
+   - Check that `FIREBASE_PRIVATE_KEY` includes the full key with `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`
+   - Verify the Firebase project ID is correct
+
+2. **Database Connection Failed:**
+   - Make sure PostgreSQL service is added to your Railway project
+   - Check that `DATABASE_URL` is automatically set by Railway
+
+3. **Stripe/Google Maps Errors:**
+   - Verify API keys are valid and have the correct permissions
+   - Check that environment variables are set without extra spaces
+
+### How to Get Firebase Credentials:
+
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Select your project
+3. Go to Project Settings (gear icon)
+4. Navigate to "Service Accounts" tab
+5. Click "Generate New Private Key"
+6. Download the JSON file
+7. Extract the values and set them as environment variables:
+   - `project_id` → `FIREBASE_PROJECT_ID`
+   - `private_key_id` → `FIREBASE_PRIVATE_KEY_ID`
+   - `private_key` → `FIREBASE_PRIVATE_KEY`
+   - `client_email` → `FIREBASE_CLIENT_EMAIL`
+   - `client_id` → `FIREBASE_CLIENT_ID`
+   - `client_x509_cert_url` → `FIREBASE_CLIENT_X509_CERT_URL`
 
 ## Alternative Deployment Options
 
