@@ -3,6 +3,7 @@ package main
 import (
 	// "context"
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -68,8 +69,23 @@ func main() {
 		log.Fatalf("Error creating Firebase Auth client: %v\n", err)
 	}
 
-	// Initialize database connection
-	connStr := "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
+	// Initialize database connection with environment variables
+	var connStr string
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		// Railway and other cloud providers often provide DATABASE_URL
+		connStr = databaseURL
+	} else {
+		// Fallback to individual environment variables
+		host := getEnv("DB_HOST", "localhost")
+		port := getEnv("DB_PORT", "5432")
+		user := getEnv("DB_USER", "savor_user")
+		password := getEnv("DB_PASSWORD", "your_password")
+		dbname := getEnv("DB_NAME", "savor")
+		sslmode := getEnv("DB_SSLMODE", "disable")
+
+		connStr = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", user, password, host, port, dbname, sslmode)
+	}
+
 	database, err := sqlx.Connect("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -112,6 +128,14 @@ func main() {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
+
+	// Health check endpoint for Railway
+	r.GET("/api/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":  "healthy",
+			"message": "Savor API is running",
+		})
+	})
 
 	// Swagger route
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -187,5 +211,15 @@ func main() {
 		storeManagementGroup.POST("/pickup-schedule", handlers.UpdatePickupSchedule)
 	}
 
-	r.Run(":8080")
+	// Get port from environment variable (Railway sets PORT automatically)
+	port := getEnv("PORT", "8080")
+	r.Run(":" + port)
+}
+
+// Helper function to get environment variable with fallback
+func getEnv(key, fallback string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return fallback
 }

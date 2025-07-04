@@ -30,4 +30,4 @@ func AuthMiddleware(client *auth.Client) gin.HandlerFunc {
 		c.Set("user_id", token.UID)
 		c.Next()
 	}
-} 
+}
