@@ -58,16 +58,16 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Initialize Firebase
-	app, err := config.InitializeFirebase()
-	if err != nil {
-		log.Fatalf("Error initializing Firebase: %v\n", err)
-	}
+	// app, err := config.InitializeFirebase()
+	// if err != nil {
+	// 	log.Fatalf("Error initializing Firebase: %v\n", err)
+	// }
 
 	// Create Firebase Auth client
-	authClient, err := app.Auth(context.Background())
-	if err != nil {
-		log.Fatalf("Error creating Firebase Auth client: %v\n", err)
-	}
+	// authClient, err := app.Auth(context.Background())
+	// if err != nil {
+	// 	log.Fatalf("Error creating Firebase Auth client: %v\n", err)
+	// }
 
 	// Initialize database connection with environment variables
 	var connStr string
