@@ -27,6 +27,8 @@ func AuthMiddleware(client *auth.Client) gin.HandlerFunc {
 			return
 		}
 
+		fmt.Println("Token:", token)
+
 		c.Set("user_id", token.UID)
 		c.Next()
 	}
