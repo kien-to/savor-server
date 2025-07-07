@@ -73,9 +73,9 @@ func main() {
 	if connStr == "" {
 		// Fallback to local database for development
 		connStr = "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
-		log.Printf("Using local database connection")
+		log.Printf("Using local database connection" + connStr)
 	} else {
-		log.Printf("Using Railway database connection")
+		log.Printf("Using Railway database connection" + connStr)
 	}
 
 	database, err := sqlx.Connect("postgres", connStr)
