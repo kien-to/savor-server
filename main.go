@@ -69,7 +69,15 @@ func main() {
 	}
 
 	// Initialize database connection
-	connStr := "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		// Fallback to local database for development
+		connStr = "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
+		log.Printf("Using local database connection")
+	} else {
+		log.Printf("Using Railway database connection")
+	}
+
 	database, err := sqlx.Connect("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -95,8 +103,12 @@ func main() {
 	// Initialize Google Maps
 	services.InitializeGoogleMaps()
 
-	// Initialize Gin router with debug mode
-	gin.SetMode(gin.DebugMode)
+	// Initialize Gin router with appropriate mode
+	ginMode := os.Getenv("GIN_MODE")
+	if ginMode == "" {
+		ginMode = "debug" // Default to debug for local development
+	}
+	gin.SetMode(ginMode)
 	r := gin.Default()
 	r.Use(gin.Logger(), gin.Recovery())
 
@@ -105,10 +117,15 @@ func main() {
 	r.Use(sessions.Sessions("savor_session", store))
 
 	// Add CORS middleware
+	allowedOrigins := []string{"http://localhost:3000"}
+	if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
+		allowedOrigins = append(allowedOrigins, frontendURL)
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
-		AllowHeaders:     []string{"Origin", "Content-Type"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
@@ -187,5 +204,11 @@ func main() {
 		storeManagementGroup.POST("/pickup-schedule", handlers.UpdatePickupSchedule)
 	}
 
-	r.Run(":8080")
+	// Start server with port from environment variable (Railway) or default to 8080
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Starting server on port %s", port)
+	r.Run(":" + port)
 }
