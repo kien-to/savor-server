@@ -28,7 +28,7 @@ func InitializeFirebase() (*firebase.App, error) {
 	ctx := context.Background()
 
 	// Try to use environment variables first (for cloud deployment)
-	if projectID := os.Getenv("FIREBASE_PROJECT_ID"); projectID != "" {
+	// if projectID := os.Getenv("FIREBASE_PROJECT_ID"); projectID != "" {
 		// Create Firebase config from environment variables
 		config := &FirebaseConfig{
 			Type:                    "service_account",
@@ -57,19 +57,19 @@ func InitializeFirebase() (*firebase.App, error) {
 		}
 
 		return app, nil
-	}
+	// }
 
-	// Fallback to local JSON file (for local development)
-	if _, err := os.Stat("config/firebase-service-account.json"); err == nil {
-		opt := option.WithCredentialsFile("config/firebase-service-account.json")
-		app, err := firebase.NewApp(ctx, nil, opt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize Firebase from JSON file: %v", err)
-		}
-		return app, nil
-	}
+	// // Fallback to local JSON file (for local development)
+	// if _, err := os.Stat("config/firebase-service-account.json"); err == nil {
+	// 	opt := option.WithCredentialsFile("config/firebase-service-account.json")
+	// 	app, err := firebase.NewApp(ctx, nil, opt)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to initialize Firebase from JSON file: %v", err)
+	// 	}
+	// 	return app, nil
+	// }
 
-	return nil, fmt.Errorf("Firebase configuration not found. Please set environment variables or provide config/firebase-service-account.json")
+	// return nil, fmt.Errorf("Firebase configuration not found. Please set environment variables or provide config/firebase-service-account.json")
 }
 
 // Helper function to get environment variable with default value
