@@ -73,11 +73,14 @@ func main() {
 	if connStr == "" {
 		// Fallback to local database for development
 		connStr = "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
-		log.Printf("Using local database connection" + connStr)
+		log.Printf("Using local database connection: %s", connStr)
 	} else {
-		log.Printf("Using Railway database connection" + connStr)
+		log.Printf("Using Railway database connection")
+		// Don't log the full connection string for security
+		log.Printf("DATABASE_URL is set and will be used")
 	}
 
+	log.Printf("Attempting to connect to database...")
 	database, err := sqlx.Connect("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -85,10 +88,12 @@ func main() {
 	defer database.Close()
 
 	// Test the connection
+	log.Printf("Testing database connection...")
 	err = database.Ping()
 	if err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
+	log.Printf("Database connection successful!")
 
 	// Assign to your global db variable
 	db.DB = database
@@ -132,6 +137,14 @@ func main() {
 
 	// Swagger route
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Health check endpoint for Railway
+	r.GET("/api/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":   "healthy",
+			"database": "connected",
+		})
+	})
 
 	// Auth routes
 	auth := r.Group("/auth")
