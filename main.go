@@ -160,7 +160,7 @@ func main() {
 
 	// Protected routes example
 	protected := r.Group("/api/settings")
-	// protected.Use(middleware.AuthMiddleware(authClient))
+	protected.Use(middleware.AuthMiddleware(authClient))
 	{
 		protected.GET("/profile", handlers.GetProfile)
 	}
@@ -172,7 +172,7 @@ func main() {
 		homeGroup.GET("/search", handlers.SearchStores)
 		homeGroup.POST("/stores/:id/save", handlers.SaveStore)
 		homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStore)
-		// homeGroup.GET("/stores/favorites", handlers.GetFavorites)
+		homeGroup.GET("/stores/favorites", handlers.GetFavorites)
 	}
 
 	storesGroup := r.Group("/api/stores")
@@ -199,6 +199,7 @@ func main() {
 
 	reservationsGroup := r.Group("/api/reservations")
 	{
+		// reservationsGroup.GET("", handlers.GetReservations)
 		reservationsGroup.GET("", middleware.AuthMiddleware(authClient), handlers.GetUserReservations)
 		reservationsGroup.GET("/demo", handlers.GetDemoReservations)
 		reservationsGroup.GET("/session", handlers.GetSessionReservations)

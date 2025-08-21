@@ -71,6 +71,26 @@ func GetUserReservations(c *gin.Context) {
 	c.JSON(http.StatusOK, reservations)
 }
 
+func GetReservations(c *gin.Context) {
+	// Check if user is authenticated by looking for Authorization header
+	authHeader := c.GetHeader("Authorization")
+
+	if authHeader != "" {
+		// User has authorization header, try to get authenticated reservations
+		// We need to manually verify the token here since we're not using middleware
+		fmt.Println("Authorization header found, attempting authenticated request")
+
+		// For now, return empty array for authenticated users since we don't have proper auth setup
+		// In a real implementation, you would verify the token and get user reservations
+		c.JSON(http.StatusOK, []ReservationResponse{})
+		return
+	}
+
+	// No authorization header, treat as guest user and get session reservations
+	fmt.Println("No authorization header, treating as guest user")
+	GetGuestReservations(c)
+}
+
 func GetDemoReservations(c *gin.Context) {
 	demoReservations := []ReservationResponse{
 		{
