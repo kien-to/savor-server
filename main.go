@@ -72,8 +72,8 @@ func main() {
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		// Fallback to local database for development
-		connStr = "postgresql://postgres:PttZOUsZxyCRGDIlgKecSGThePtJbNYB@crossover.proxy.rlwy.net:31363/railway"
-		// "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
+		// connStr = "postgresql://postgres:PttZOUsZxyCRGDIlgKecSGThePtJbNYB@crossover.proxy.rlwy.net:31363/railway"
+		connStr = "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
 		log.Printf("Using local database connection: %s", connStr)
 	} else {
 		log.Printf("Using Railway database connection")

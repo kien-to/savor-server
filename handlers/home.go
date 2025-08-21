@@ -56,31 +56,38 @@ type HomePageResponse struct {
 // @Failure     401 {object} map[string]string "Unauthorized"
 // @Router      /api/home [get]
 func GetHomePageData(c *gin.Context) {
-	fmt.Println("GetHomePageData called")
+	fmt.Println("[BACKEND] GetHomePageData called")
 	if db.DB == nil {
+		log.Printf("[BACKEND] ERROR: Database connection not initialized")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection not initialized"})
 		return
 	}
 
 	lat := c.Query("latitude")
 	lng := c.Query("longitude")
+	log.Printf("[BACKEND] Received params - lat: %s, lng: %s", lat, lng)
 
 	if lat == "" || lng == "" {
+		log.Printf("[BACKEND] ERROR: Missing location parameters")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Location parameters required"})
 		return
 	}
 
 	userLat, err := strconv.ParseFloat(lat, 64)
 	if err != nil {
+		log.Printf("[BACKEND] ERROR: Invalid latitude '%s': %v", lat, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid latitude"})
 		return
 	}
 
 	userLng, err := strconv.ParseFloat(lng, 64)
 	if err != nil {
+		log.Printf("[BACKEND] ERROR: Invalid longitude '%s': %v", lng, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid longitude"})
 		return
 	}
+
+	log.Printf("[BACKEND] Parsed coordinates: lat=%f, lng=%f", userLat, userLng)
 
 	var stores []models.Store
 	err = db.DB.Select(&stores, `
@@ -144,22 +151,29 @@ func GetHomePageData(c *gin.Context) {
 
 	if err != nil {
 		fmt.Println(err)
-		log.Printf("Failed to search stores: %v", err)
+		log.Printf("[BACKEND] ERROR: Database query failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stores"})
 		return
 	}
 
+	log.Printf("[BACKEND] Query successful, found %d stores", len(stores))
+
 	// Calculate distances using Google Maps API
 	if services.GoogleMaps != nil {
+		log.Printf("[BACKEND] Google Maps service available, calculating distances")
 		for i := range stores {
 			if stores[i].Latitude != 0 && stores[i].Longitude != 0 {
 				distanceResult, err := services.GoogleMaps.CalculateDistance(userLat, userLng, stores[i].Latitude, stores[i].Longitude)
 				if err == nil && distanceResult != nil {
 					distanceStr := distanceResult.Distance
 					stores[i].Distance = &distanceStr
+				} else if err != nil {
+					log.Printf("[BACKEND] Distance calculation failed for store %s: %v", stores[i].ID, err)
 				}
 			}
 		}
+	} else {
+		log.Printf("[BACKEND] WARNING: Google Maps service not available")
 	}
 
 	// Split stores into recommended and pickup tomorrow based on pickup time
@@ -185,6 +199,7 @@ func GetHomePageData(c *gin.Context) {
 		EmailVerified:     true,
 	}
 
+	log.Printf("[BACKEND] Response ready with %d recommended, %d tomorrow stores", len(response.RecommendedStores), len(response.PickUpTomorrow))
 	c.JSON(http.StatusOK, response)
 }
 
