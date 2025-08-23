@@ -90,6 +90,11 @@ func GetHomePageData(c *gin.Context) {
 	log.Printf("[BACKEND] Parsed coordinates: lat=%f, lng=%f", userLat, userLng)
 
 	var stores []models.Store
+
+	// Debug: Log the user_id and its type
+	userID := c.GetString("user_id")
+	log.Printf("[BACKEND] DEBUG: user_id = '%s', type = %T", userID, userID)
+
 	err = db.DB.Select(&stores, `
 		WITH saved_status AS (
 			SELECT store_id, true as is_saved 
@@ -147,11 +152,18 @@ func GetHomePageData(c *gin.Context) {
 			ss.is_saved
 		ORDER BY s.rating DESC 
 		LIMIT 20
-	`, c.GetString("user_id"))
+	`, userID)
 
 	if err != nil {
 		fmt.Println(err)
 		log.Printf("[BACKEND] ERROR: Database query failed: %v", err)
+		log.Printf("[BACKEND] DEBUG: Query was executed with user_id = '%s'", userID)
+
+		// Check if this is a type mismatch error
+		if strings.Contains(err.Error(), "operator does not exist: integer = text") {
+			log.Printf("[BACKEND] DEBUG: This is a type mismatch error - likely comparing integer with text in saved_stores table")
+		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stores"})
 		return
 	}

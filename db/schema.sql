@@ -34,17 +34,15 @@ CREATE TABLE store_highlights (
 );
 
 CREATE TABLE saved_stores (
-    -- user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL,
-    store_id TEXT NOT NULL,
-    store_id VARCHAR(36) REFERENCES stores(id) ON DELETE CASCADE,
+    store_id VARCHAR(36) NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, store_id)
 );
 
 CREATE INDEX idx_stores_location ON stores(latitude, longitude);
 CREATE INDEX idx_saved_stores_user ON saved_stores(user_id);
+CREATE INDEX idx_saved_stores_store ON saved_stores(store_id);
 
 CREATE EXTENSION IF NOT EXISTS cube;
 CREATE EXTENSION IF NOT EXISTS earthdistance;
