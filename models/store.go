@@ -54,16 +54,118 @@ type Store struct {
 }
 
 func (s Store) MarshalJSON() ([]byte, error) {
-	type Alias Store // Use type alias to avoid recursion
-
-	// Create a struct for JSON marshaling
-	return json.Marshal(&struct {
-		Alias
-		AvatarURL string `json:"avatar_url,omitempty"`
+	// Create a struct for JSON marshaling with proper null handling
+	result := struct {
+		ID              string    `json:"id"`
+		OwnerID         string    `json:"ownerId"`
+		Title           string    `json:"title"`
+		Description     *string   `json:"description"`
+		PickupTime      *string   `json:"pickUpTime"`
+		Distance        *string   `json:"distance"`
+		Price           *float64  `json:"price"`
+		OriginalPrice   *float64  `json:"originalPrice"`
+		DiscountedPrice *float64  `json:"discountedPrice"`
+		BackgroundURL   string    `json:"backgroundUrl"`
+		AvatarURL       *string   `json:"avatarUrl"`
+		ImageURL        string    `json:"imageUrl"`
+		Rating          *float64  `json:"rating"`
+		Reviews         *int64    `json:"reviews"`
+		ReviewsCount    *int64    `json:"reviewsCount"`
+		Address         string    `json:"address"`
+		City            *string   `json:"city"`
+		State           *string   `json:"state"`
+		ZipCode         *string   `json:"zipCode"`
+		Country         *string   `json:"country"`
+		Phone           *string   `json:"phone"`
+		ItemsLeft       *int64    `json:"itemsLeft"`
+		BagsAvailable   *int64    `json:"bagsAvailable"`
+		Latitude        float64   `json:"latitude"`
+		Longitude       float64   `json:"longitude"`
+		GoogleMapsURL   *string   `json:"googleMapsUrl"`
+		Highlights      []string  `json:"highlights"`
+		IsSaved         bool      `json:"isSaved"`
+		IsSelling       bool      `json:"isSelling"`
+		StoreType       string    `json:"storeType"`
+		CreatedAt       time.Time `json:"createdAt"`
+		UpdatedAt       time.Time `json:"updatedAt"`
 	}{
-		Alias:     Alias(s),
-		AvatarURL: s.AvatarURL.String, // This will be empty string if NULL
-	})
+		ID:            s.ID,
+		OwnerID:       s.OwnerID,
+		Title:         s.Title,
+		BackgroundURL: s.BackgroundURL,
+		ImageURL:      s.ImageURL,
+		Address:       s.Address,
+		Latitude:      s.Latitude,
+		Longitude:     s.Longitude,
+		Highlights:    s.Highlights,
+		IsSaved:       s.IsSaved,
+		IsSelling:     s.IsSelling,
+		StoreType:     s.StoreType,
+		CreatedAt:     s.CreatedAt,
+		UpdatedAt:     s.UpdatedAt,
+	}
+
+	// Handle nullable strings
+	if s.Description.Valid {
+		result.Description = &s.Description.String
+	}
+	if s.PickupTime.Valid {
+		result.PickupTime = &s.PickupTime.String
+	}
+	if s.AvatarURL.Valid {
+		result.AvatarURL = &s.AvatarURL.String
+	}
+	if s.City.Valid {
+		result.City = &s.City.String
+	}
+	if s.State.Valid {
+		result.State = &s.State.String
+	}
+	if s.ZipCode.Valid {
+		result.ZipCode = &s.ZipCode.String
+	}
+	if s.Country.Valid {
+		result.Country = &s.Country.String
+	}
+	if s.Phone.Valid {
+		result.Phone = &s.Phone.String
+	}
+	if s.GoogleMapsURL.Valid {
+		result.GoogleMapsURL = &s.GoogleMapsURL.String
+	}
+
+	// Handle nullable floats
+	if s.Price.Valid {
+		result.Price = &s.Price.Float64
+	}
+	if s.OriginalPrice.Valid {
+		result.OriginalPrice = &s.OriginalPrice.Float64
+	}
+	if s.DiscountedPrice.Valid {
+		result.DiscountedPrice = &s.DiscountedPrice.Float64
+	}
+	if s.Rating.Valid {
+		result.Rating = &s.Rating.Float64
+	}
+
+	// Handle nullable ints
+	if s.Reviews.Valid {
+		result.Reviews = &s.Reviews.Int64
+	}
+	if s.ReviewsCount.Valid {
+		result.ReviewsCount = &s.ReviewsCount.Int64
+	}
+	if s.ItemsLeft.Valid {
+		result.ItemsLeft = &s.ItemsLeft.Int64
+	}
+	if s.BagsAvailable.Valid {
+		result.BagsAvailable = &s.BagsAvailable.Int64
+	}
+
+	// Handle distance
+	result.Distance = s.Distance
+
+	return json.Marshal(result)
 }
 
 func (s *Store) GetBusinessHours() ([]BusinessHours, error) {

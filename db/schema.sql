@@ -13,6 +13,7 @@ CREATE TABLE stores (
     distance VARCHAR(50),
     price DECIMAL(10,2),
     original_price DECIMAL(10,2),
+    discounted_price DECIMAL(10,2),
     background_url TEXT,
     avatar_url TEXT,
     rating DECIMAL(3,1),

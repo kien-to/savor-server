@@ -1,6 +1,8 @@
 module savor-server
 
-go 1.21.0
+go 1.21.1
+
+toolchain go1.23.3
 
 require (
 	firebase.google.com/go/v4 v4.15.1

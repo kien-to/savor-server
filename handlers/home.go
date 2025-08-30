@@ -95,64 +95,106 @@ func GetHomePageData(c *gin.Context) {
 	userID := c.GetString("user_id")
 	log.Printf("[BACKEND] DEBUG: user_id = '%s', type = %T", userID, userID)
 
+	// Debug: Check total count of stores in database
+	var totalCount int
+	countErr := db.DB.Get(&totalCount, "SELECT COUNT(*) FROM stores")
+	if countErr == nil {
+		log.Printf("[BACKEND] 🔢 Total stores in database: %d", totalCount)
+	} else {
+		log.Printf("[BACKEND] ERROR: Could not count stores: %v", countErr)
+	}
+
+	// COMMENTED OUT: Original query with saved_stores table (causing type mismatch)
+	/*
+		err = db.DB.Select(&stores, `
+			WITH saved_status AS (
+				SELECT store_id, true as is_saved
+				FROM saved_stores
+				WHERE user_id = $1
+			)
+			SELECT
+				s.id,
+				s.title,
+				s.description,
+				s.pickup_time,
+				COALESCE(s.distance, '0 km') as distance,
+				COALESCE(s.price, 0.0) as price,
+				COALESCE(s.original_price, s.price) as original_price,
+				COALESCE(s.discounted_price, s.price) as discounted_price,
+				s.background_url,
+				s.image_url,
+				COALESCE(s.rating, 0.0) as rating,
+				COALESCE(s.reviews, 0) as reviews,
+				COALESCE(s.reviews_count, s.reviews) as reviews_count,
+				s.address,
+				COALESCE(s.items_left, 0) as items_left,
+				COALESCE(s.bags_available, s.items_left) as bags_available,
+				s.latitude,
+				s.longitude,
+				s.google_maps_url,
+				s.is_selling,
+				COALESCE(ss.is_saved, false) as is_saved,
+				array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
+			FROM stores s
+			LEFT JOIN saved_status ss ON s.id = ss.store_id
+			LEFT JOIN store_highlights sh ON s.id = sh.store_id
+			WHERE s.is_selling = true
+			GROUP BY
+				s.id,
+				s.title,
+				s.description,
+				s.pickup_time,
+				s.distance,
+				s.price,
+				s.original_price,
+				s.discounted_price,
+				s.background_url,
+				s.image_url,
+				s.rating,
+				s.reviews,
+				s.reviews_count,
+				s.address,
+				s.items_left,
+				s.bags_available,
+				s.latitude,
+				s.longitude,
+				s.google_maps_url,
+				s.is_selling,
+				ss.is_saved
+			ORDER BY s.rating DESC
+			LIMIT 20
+		`, userID)
+	*/
+
+	// NEW QUERY: Simplified without saved_stores and store_highlights tables
 	err = db.DB.Select(&stores, `
-		WITH saved_status AS (
-			SELECT store_id, true as is_saved 
-			FROM saved_stores 
-			WHERE user_id = $1
-		)
 		SELECT 
 			s.id, 
 			s.title, 
-			s.description, 
-			s.pickup_time,
+			COALESCE(s.description, '') as description,
+			COALESCE(s.pickup_time, '') as pickup_time,
 			COALESCE(s.distance, '0 km') as distance,
-			COALESCE(s.price, 0.0) as price,
-			COALESCE(s.original_price, s.price) as original_price,
-			COALESCE(s.discounted_price, s.price) as discounted_price,
-			s.background_url,
-			s.image_url,
+			COALESCE(s.price::numeric, 0.0) as price,
+			COALESCE(s.original_price::numeric, s.price::numeric, 0.0) as original_price,
+			COALESCE(s.price::numeric, 0.0) as discounted_price,
+			COALESCE(s.background_url, '') as background_url,
+			COALESCE(s.image_url, '') as image_url,
 			COALESCE(s.rating, 0.0) as rating,
 			COALESCE(s.reviews, 0) as reviews,
-			COALESCE(s.reviews_count, s.reviews) as reviews_count,
-			s.address,
+			COALESCE(s.reviews, 0) as reviews_count,
+			COALESCE(s.address, '') as address,
 			COALESCE(s.items_left, 0) as items_left,
-			COALESCE(s.bags_available, s.items_left) as bags_available,
-			s.latitude,
-			s.longitude,
-			s.google_maps_url,
-			s.is_selling,
-			COALESCE(ss.is_saved, false) as is_saved,
-			array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
+			COALESCE(s.items_left, 0) as bags_available,
+			COALESCE(s.latitude, 0.0) as latitude,
+			COALESCE(s.longitude, 0.0) as longitude,
+			COALESCE(s.google_maps_url, '') as google_maps_url,
+			true as is_selling,
+			false as is_saved,  -- Set to false for now since we're not checking saved_stores
+			ARRAY[]::text[] as highlights  -- Empty array since we're not checking store_highlights
 		FROM stores s
-		LEFT JOIN saved_status ss ON s.id = ss.store_id
-		LEFT JOIN store_highlights sh ON s.id = sh.store_id
-		WHERE s.is_selling = true
-		GROUP BY 
-			s.id, 
-			s.title,
-			s.description,
-			s.pickup_time,
-			s.distance,
-			s.price,
-			s.original_price,
-			s.discounted_price,
-			s.background_url,
-			s.image_url,
-			s.rating,
-			s.reviews,
-			s.reviews_count,
-			s.address,
-			s.items_left,
-			s.bags_available,
-			s.latitude,
-			s.longitude,
-			s.google_maps_url,
-			s.is_selling,
-			ss.is_saved
 		ORDER BY s.rating DESC 
 		LIMIT 20
-	`, userID)
+	`)
 
 	if err != nil {
 		fmt.Println(err)
@@ -168,7 +210,16 @@ func GetHomePageData(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[BACKEND] Query successful, found %d stores", len(stores))
+	log.Printf("[BACKEND] ✅ Query successful, found %d stores from database", len(stores))
+
+	// Log details about each store for debugging
+	for i, store := range stores {
+		log.Printf("[BACKEND] Store %d: ID=%s, Title=%s, Price=%.2f, Rating=%.1f, ItemsLeft=%d, Address=%s",
+			i+1, store.ID, store.Title, store.Price.Float64, store.Rating.Float64, store.ItemsLeft.Int64, store.Address)
+	}
+
+	// Additional debug: Log the exact SQL query being executed
+	log.Printf("[BACKEND] 🔍 DEBUG: Database contains only %d stores. Expected ~15 stores from CSV import.", len(stores))
 
 	// Calculate distances using Google Maps API
 	if services.GoogleMaps != nil {
@@ -198,6 +249,8 @@ func GetHomePageData(c *gin.Context) {
 		}
 	}
 
+	log.Printf("[BACKEND] 📊 Data split - Recommended: %d stores, Tomorrow: %d stores", len(recommended), len(tomorrow))
+
 	response := HomePageResponse{
 		UserLocation: struct {
 			City     string `json:"city"`
@@ -211,7 +264,8 @@ func GetHomePageData(c *gin.Context) {
 		EmailVerified:     true,
 	}
 
-	log.Printf("[BACKEND] Response ready with %d recommended, %d tomorrow stores", len(response.RecommendedStores), len(response.PickUpTomorrow))
+	log.Printf("[BACKEND] 🚀 Response ready with %d recommended, %d tomorrow stores", len(response.RecommendedStores), len(response.PickUpTomorrow))
+	log.Printf("[BACKEND] 📤 Sending final response to client")
 	c.JSON(http.StatusOK, response)
 }
 
@@ -226,7 +280,10 @@ func GetHomePageData(c *gin.Context) {
 // @Router      /api/home/search [get]
 func SearchStores(c *gin.Context) {
 	query := c.Query("query")
+	log.Printf("[BACKEND] 🔍 SearchStores called with query: '%s'", query)
+
 	if query == "" {
+		log.Printf("[BACKEND] ERROR: Empty search query")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Search query required"})
 		return
 	}
@@ -251,73 +308,120 @@ func SearchStores(c *gin.Context) {
 		}
 	}
 
-	userID := c.GetString("user_id")
+	// userID := c.GetString("user_id")
 	var modelStores []models.Store
+
+	// COMMENTED OUT: Original query with saved_stores table (causing type mismatch)
+	/*
+		err := db.DB.Select(&modelStores, `
+			WITH saved_status AS (
+				SELECT store_id, true as is_saved
+				FROM saved_stores
+				WHERE user_id = $1
+			)
+			SELECT
+				s.id,
+				s.title,
+				s.description,
+				s.pickup_time,
+				COALESCE(s.distance, '0 km') as distance,
+				COALESCE(s.price, 0.0) as price,
+				COALESCE(s.original_price, s.price) as original_price,
+				COALESCE(s.discounted_price, s.price) as discounted_price,
+				s.background_url,
+				s.image_url,
+				COALESCE(s.rating, 0.0) as rating,
+				COALESCE(s.reviews, 0) as reviews,
+				COALESCE(s.reviews_count, s.reviews) as reviews_count,
+				s.address,
+				COALESCE(s.items_left, 0) as items_left,
+				COALESCE(s.bags_available, s.items_left) as bags_available,
+				s.latitude,
+				s.longitude,
+				s.google_maps_url,
+				s.is_selling,
+				COALESCE(ss.is_saved, false) as is_saved,
+				array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
+			FROM stores s
+			LEFT JOIN saved_status ss ON s.id = ss.store_id
+			LEFT JOIN store_highlights sh ON s.id = sh.store_id
+			WHERE
+				s.title ILIKE $2 OR
+				s.description ILIKE $2 OR
+				s.address ILIKE $2
+			GROUP BY
+				s.id,
+				s.title,
+				s.description,
+				s.pickup_time,
+				s.distance,
+				s.price,
+				s.original_price,
+				s.discounted_price,
+				s.background_url,
+				s.image_url,
+				s.rating,
+				s.reviews,
+				s.reviews_count,
+				s.address,
+				s.items_left,
+				s.bags_available,
+				s.latitude,
+				s.longitude,
+				s.google_maps_url,
+				s.is_selling,
+				ss.is_saved
+			ORDER BY s.rating DESC
+			LIMIT 20
+		`, userID, "%"+query+"%")
+	*/
+
+	// NEW QUERY: Simplified without saved_stores and store_highlights tables
 	err := db.DB.Select(&modelStores, `
-		WITH saved_status AS (
-			SELECT store_id, true as is_saved 
-			FROM saved_stores 
-			WHERE user_id = $1
-		)
 		SELECT 
 			s.id, 
 			s.title, 
-			s.description, 
-			s.pickup_time,
+			COALESCE(s.description, '') as description,
+			COALESCE(s.pickup_time, '') as pickup_time,
 			COALESCE(s.distance, '0 km') as distance,
-			COALESCE(s.price, 0.0) as price,
-			COALESCE(s.original_price, s.price) as original_price,
-			COALESCE(s.discounted_price, s.price) as discounted_price,
-			s.background_url,
-			s.image_url,
+			COALESCE(s.price::numeric, 0.0) as price,
+			COALESCE(s.original_price::numeric, s.price::numeric, 0.0) as original_price,
+			COALESCE(s.price::numeric, 0.0) as discounted_price,
+			COALESCE(s.background_url, '') as background_url,
+			COALESCE(s.image_url, '') as image_url,
 			COALESCE(s.rating, 0.0) as rating,
 			COALESCE(s.reviews, 0) as reviews,
-			COALESCE(s.reviews_count, s.reviews) as reviews_count,
-			s.address,
+			COALESCE(s.reviews, 0) as reviews_count,
+			COALESCE(s.address, '') as address,
 			COALESCE(s.items_left, 0) as items_left,
-			COALESCE(s.bags_available, s.items_left) as bags_available,
-			s.latitude,
-			s.longitude,
-			s.google_maps_url,
-			s.is_selling,
-			COALESCE(ss.is_saved, false) as is_saved,
-			array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
+			COALESCE(s.items_left, 0) as bags_available,
+			COALESCE(s.latitude, 0.0) as latitude,
+			COALESCE(s.longitude, 0.0) as longitude,
+			COALESCE(s.google_maps_url, '') as google_maps_url,
+			true as is_selling,
+			false as is_saved,  -- Set to false for now since we're not checking saved_stores
+			ARRAY[]::text[] as highlights  -- Empty array since we're not checking store_highlights
 		FROM stores s
-		LEFT JOIN saved_status ss ON s.id = ss.store_id
-		LEFT JOIN store_highlights sh ON s.id = sh.store_id
 		WHERE 
-			s.title ILIKE $2 OR 
-			s.description ILIKE $2 OR 
-			s.address ILIKE $2
-		GROUP BY 
-			s.id, 
-			s.title,
-			s.description,
-			s.pickup_time,
-			s.distance,
-			s.price,
-			s.original_price,
-			s.discounted_price,
-			s.background_url,
-			s.image_url,
-			s.rating,
-			s.reviews,
-			s.reviews_count,
-			s.address,
-			s.items_left,
-			s.bags_available,
-			s.latitude,
-			s.longitude,
-			s.google_maps_url,
-			s.is_selling,
-			ss.is_saved
+			COALESCE(s.title, '') ILIKE $1 OR 
+			COALESCE(s.description, '') ILIKE $1 OR 
+			COALESCE(s.address, '') ILIKE $1
 		ORDER BY s.rating DESC
 		LIMIT 20
-	`, userID, "%"+query+"%")
+	`, "%"+query+"%")
 
 	if err != nil {
+		log.Printf("[BACKEND] ERROR: Search query failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search stores"})
 		return
+	}
+
+	log.Printf("[BACKEND] ✅ Search successful, found %d stores matching '%s'", len(modelStores), query)
+
+	// Log search results for debugging
+	for i, store := range modelStores {
+		log.Printf("[BACKEND] Search Result %d: ID=%s, Title=%s, Matches query '%s'",
+			i+1, store.ID, store.Title, query)
 	}
 
 	// Calculate distances using Google Maps API if user location is provided
@@ -335,6 +439,7 @@ func SearchStores(c *gin.Context) {
 
 	// Convert model stores to response stores
 	stores := convertToStores(modelStores)
+	log.Printf("[BACKEND] 📤 Search response ready with %d stores for query '%s'", len(stores), query)
 	c.JSON(http.StatusOK, stores)
 }
 

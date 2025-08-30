@@ -11,16 +11,16 @@ import (
 	"github.com/joho/godotenv"
 
 	"savor-server/config"
+	"savor-server/db"
 	_ "savor-server/docs" // This will be auto-generated
 	"savor-server/handlers"
 	"savor-server/middleware"
 	"savor-server/services"
 
-	"savor-server/db" // Add this import
+	// "savor-server/db" // Add this import
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // postgres driver
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -68,36 +68,21 @@ func main() {
 		log.Fatalf("Error creating Firebase Auth client: %v\n", err)
 	}
 
-	// Initialize database connection
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr == "" {
-		// Fallback to local database for development
-		// connStr = "postgresql://postgres:PttZOUsZxyCRGDIlgKecSGThePtJbNYB@crossover.proxy.rlwy.net:31363/railway"
-		connStr = "postgres://savor_user:your_password@localhost:5432/savor?sslmode=disable"
-		log.Printf("Using local database connection: %s", connStr)
-	} else {
-		log.Printf("Using Railway database connection")
-		// Don't log the full connection string for security
-		log.Printf("DATABASE_URL is set and will be used")
-	}
-
-	log.Printf("Attempting to connect to database...")
-	database, err := sqlx.Connect("postgres", connStr)
+	// Initialize Supabase PostgreSQL connection using official methods
+	supabaseDB, err := config.InitializeSupabaseDB()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Failed to initialize Supabase database: %v", err)
 	}
-	defer database.Close()
+	defer supabaseDB.Close()
 
 	// Test the connection
-	log.Printf("Testing database connection...")
-	err = database.Ping()
+	err = supabaseDB.Ping()
 	if err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
-	log.Printf("Database connection successful!")
 
-	// Assign to your global db variable
-	db.DB = database
+	// Set the database for both legacy and new handlers
+	db.DB = supabaseDB                 // For legacy handlers
 
 	// Initialize Stripe
 	stripeKey := os.Getenv("STRIPE_SECRET_KEY")
@@ -165,7 +150,7 @@ func main() {
 		protected.GET("/profile", handlers.GetProfile)
 	}
 
-	// Home routes
+	// Home routes - Direct Supabase PostgreSQL (Recommended)
 	homeGroup := r.Group("/api/home")
 	{
 		homeGroup.GET("", handlers.GetHomePageData)
@@ -173,6 +158,34 @@ func main() {
 		homeGroup.POST("/stores/:id/save", handlers.SaveStore)
 		homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStore)
 		homeGroup.GET("/stores/favorites", handlers.GetFavorites)
+		// homeGroup.GET("", handlers.GetHomePageDataPostgres)
+		// homeGroup.GET("/search", handlers.SearchStoresPostgres)
+		// homeGroup.POST("/stores/:id/save", handlers.SaveStorePostgres)
+		// homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStorePostgres)
+		// homeGroup.GET("/stores/favorites", handlers.GetFavoritesPostgres)
+		// homeGroup.GET("", handlers.GetHomePageDataSupabase)
+		// homeGroup.GET("/search", handlers.SearchStoresSupabase)
+		// homeGroup.POST("/stores/:id/save", handlers.SaveStoreSupabase)
+		// homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStoreSupabase)
+		// homeGroup.GET("/stores/favorites", handlers.GetFavoritesSupabase)
+		// homeGroup.GET("", handlers.GetHomePageDataHTTP)
+		// homeGroup.GET("/search", handlers.SearchStoresHTTP)
+		// homeGroup.POST("/stores/:id/save", handlers.SaveStoreHTTP)
+		// homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStoreHTTP)
+		// homeGroup.GET("/stores/favorites", handlers.GetFavoritesHTTP)
+
+		// Alternative implementations (uncomment to use):
+		// HTTP API approach:
+		// homeGroup.GET("", handlers.GetHomePageDataHTTP)
+		// homeGroup.GET("/search", handlers.SearchStoresHTTP)
+
+		// Client wrapper approach:
+		// homeGroup.GET("", handlers.GetHomePageDataSupabase)
+		// homeGroup.GET("/search", handlers.SearchStoresSupabase)
+
+		// Legacy approach:
+		// homeGroup.GET("", handlers.GetHomePageData)
+		// homeGroup.GET("/search", handlers.SearchStores)
 	}
 
 	storesGroup := r.Group("/api/stores")
