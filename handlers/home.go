@@ -25,6 +25,7 @@ type Store struct {
 	DiscountedPrice float64  `json:"discountedPrice"`
 	ImageURL        string   `json:"imageUrl"`
 	Rating          float64  `json:"rating"`
+	Address         string   `json:"address"` // THIS WAS MISSING!
 	IsSaved         bool     `json:"isSaved"`
 	Latitude        float64  `json:"latitude"`
 	Longitude       float64  `json:"longitude"`
@@ -214,7 +215,7 @@ func GetHomePageData(c *gin.Context) {
 
 	// Log details about each store for debugging
 	for i, store := range stores {
-		log.Printf("[BACKEND] Store %d: ID=%s, Title=%s, Price=%.2f, Rating=%.1f, ItemsLeft=%d, Address=%s",
+		log.Printf("[BACKEND] Store %d: ID=%s, Title=%s, Price=%.2f, Rating=%.1f, ItemsLeft=%d, Address='%s'",
 			i+1, store.ID, store.Title, store.Price.Float64, store.Rating.Float64, store.ItemsLeft.Int64, store.Address)
 	}
 
@@ -496,6 +497,9 @@ func convertToStores(modelStores []models.Store) []Store {
 			googleMapsURL = s.GoogleMapsURL.String
 		}
 
+		// Debug: Log the address being converted
+		fmt.Printf("[DEBUG convertToStores] Store %s: Address='%s'\n", s.ID, s.Address)
+
 		stores[i] = Store{
 			ID:              s.ID,
 			Title:           s.Title,
@@ -509,6 +513,7 @@ func convertToStores(modelStores []models.Store) []Store {
 			Rating:          rating,
 			ReviewsCount:    reviewsCount,
 			BagsAvailable:   bagsAvailable,
+			Address:         s.Address, // THIS WAS MISSING!
 			IsSaved:         s.IsSaved,
 			Latitude:        s.Latitude,
 			Longitude:       s.Longitude,

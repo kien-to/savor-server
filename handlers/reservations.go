@@ -23,6 +23,9 @@ type ReservationResponse struct {
 	StoreID         string    `db:"store_id" json:"storeId"`
 	StoreName       string    `db:"store_name" json:"storeName"`
 	StoreImage      string    `db:"store_image" json:"storeImage"`
+	StoreAddress    string    `db:"store_address" json:"storeAddress"`
+	StoreLatitude   float64   `db:"store_latitude" json:"storeLatitude"`
+	StoreLongitude  float64   `db:"store_longitude" json:"storeLongitude"`
 	Quantity        int       `db:"quantity" json:"quantity"`
 	TotalAmount     float64   `db:"total_amount" json:"totalAmount"`
 	Status          string    `db:"status" json:"status"`
@@ -48,14 +51,17 @@ func GetUserReservations(c *gin.Context) {
 			r.store_id,
 			s.title as store_name,
 			s.image_url as store_image,
+			s.address as store_address,
+			s.latitude as store_latitude,
+			s.longitude as store_longitude,
 			r.quantity,
 			r.total_amount,
 			r.status,
 			r.payment_id,
 			r.pickup_time,
 			r.created_at,
-			r.original_price,
-			r.discounted_price
+			s.original_price,
+			s.discounted_price
 		FROM reservations r
 		JOIN stores s ON r.store_id = s.id
 		WHERE r.user_id = $1
@@ -98,6 +104,9 @@ func GetDemoReservations(c *gin.Context) {
 			StoreID:         "store-1",
 			StoreName:       "Sushi Paradise",
 			StoreImage:      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c",
+			StoreAddress:    "123 Phan Chu Trinh, Hoàn Kiếm, Hà Nội",
+			StoreLatitude:   21.0287,
+			StoreLongitude:  105.8514,
 			Quantity:        2,
 			TotalAmount:     19.99,
 			Status:          "confirmed",
@@ -112,6 +121,9 @@ func GetDemoReservations(c *gin.Context) {
 			StoreID:         "store-2",
 			StoreName:       "Bakery Delight",
 			StoreImage:      "https://images.unsplash.com/photo-1509440159596-0249088772ff",
+			StoreAddress:    "456 Nguyen Hue, Hoan Kiem, Ha Noi",
+			StoreLatitude:   21.0088,
+			StoreLongitude:  105.8619,
 			Quantity:        1,
 			TotalAmount:     9.99,
 			Status:          "completed",
@@ -134,16 +146,21 @@ func stringPtr(s string) *string {
 }
 
 type GuestReservationRequest struct {
-	StoreID     string  `json:"storeId"`
-	StoreName   string  `json:"storeName"`
-	StoreImage  string  `json:"storeImage"`
-	Quantity    int     `json:"quantity"`
-	TotalAmount float64 `json:"totalAmount"`
-	PickupTime  string  `json:"pickupTime"`
-	Name        string  `json:"name"`
-	Email       string  `json:"email,omitempty"`
-	Phone       string  `json:"phone,omitempty"`
-	PaymentType string  `json:"paymentType"`
+	StoreID         string  `json:"storeId"`
+	StoreName       string  `json:"storeName"`
+	StoreImage      string  `json:"storeImage"`
+	StoreAddress    string  `json:"storeAddress"`
+	StoreLatitude   float64 `json:"storeLatitude"`
+	StoreLongitude  float64 `json:"storeLongitude"`
+	Quantity        int     `json:"quantity"`
+	TotalAmount     float64 `json:"totalAmount"`
+	OriginalPrice   float64 `json:"originalPrice"`
+	DiscountedPrice float64 `json:"discountedPrice"`
+	PickupTime      string  `json:"pickupTime"`
+	Name            string  `json:"name"`
+	Email           string  `json:"email,omitempty"`
+	Phone           string  `json:"phone,omitempty"`
+	PaymentType     string  `json:"paymentType"`
 }
 
 func CreateGuestReservation(c *gin.Context) {
@@ -161,19 +178,31 @@ func CreateGuestReservation(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Creating reservation: %v\n", req)
+	fmt.Printf("[DEBUG] StoreAddress received in request: '%s'\n", req.StoreAddress)
+	fmt.Printf("[DEBUG] StoreLatitude: %f, StoreLongitude: %f\n", req.StoreLatitude, req.StoreLongitude)
+
 	// Create a new reservation
 	reservation := ReservationResponse{
-		ID:          fmt.Sprintf("guest-%d", time.Now().Unix()),
-		StoreID:     req.StoreID,
-		StoreName:   req.StoreName,
-		StoreImage:  req.StoreImage,
-		Quantity:    req.Quantity,
-		TotalAmount: req.TotalAmount,
-		Status:      "pending",
-		PaymentID:   fmt.Sprintf("pay-%d", time.Now().Unix()),
-		PickupTime:  &req.PickupTime,
-		CreatedAt:   time.Now(),
+		ID:              fmt.Sprintf("guest-%d", time.Now().Unix()),
+		StoreID:         req.StoreID,
+		StoreName:       req.StoreName,
+		StoreImage:      req.StoreImage,
+		StoreAddress:    req.StoreAddress,
+		StoreLatitude:   req.StoreLatitude,
+		StoreLongitude:  req.StoreLongitude,
+		Quantity:        req.Quantity,
+		TotalAmount:     req.TotalAmount,
+		OriginalPrice:   req.OriginalPrice,
+		DiscountedPrice: req.DiscountedPrice,
+		Status:          "pending",
+		PaymentID:       fmt.Sprintf("pay-%d", time.Now().Unix()),
+		PickupTime:      &req.PickupTime,
+		CreatedAt:       time.Now(),
 	}
+
+	fmt.Printf("[DEBUG] store address being set: '%s'\n", req.StoreAddress)
+	fmt.Printf("[DEBUG] Created reservation with address: '%s'\n", reservation.StoreAddress)
 
 	// Get session
 	session := sessions.Default(c)
@@ -308,11 +337,18 @@ func GetGuestReservations(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("Session reservations: %v\n", sessionReservations)
+
 	reservations, ok := sessionReservations.([]ReservationResponse)
 	if !ok {
 		log.Printf("Failed to cast session reservations to []ReservationResponse: %v", sessionReservations)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid session data"})
 		return
+	}
+
+	// Debug each reservation's address
+	for i, res := range reservations {
+		fmt.Printf("[DEBUG] Reservation %d - ID: %s, StoreAddress: '%s'\n", i, res.ID, res.StoreAddress)
 	}
 
 	// Filter out expired reservations
@@ -344,4 +380,16 @@ func GetGuestReservations(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, activeReservations)
+}
+
+// ClearSessionReservations clears all reservations from the session (for debugging)
+func ClearSessionReservations(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Delete("reservations")
+	if err := session.Save(); err != nil {
+		log.Printf("Error clearing session reservations: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear session"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Session reservations cleared"})
 }
