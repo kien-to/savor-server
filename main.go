@@ -181,34 +181,6 @@ func main() {
 		homeGroup.POST("/stores/:id/save", handlers.SaveStore)
 		homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStore)
 		homeGroup.GET("/stores/favorites", handlers.GetFavorites)
-		// homeGroup.GET("", handlers.GetHomePageDataPostgres)
-		// homeGroup.GET("/search", handlers.SearchStoresPostgres)
-		// homeGroup.POST("/stores/:id/save", handlers.SaveStorePostgres)
-		// homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStorePostgres)
-		// homeGroup.GET("/stores/favorites", handlers.GetFavoritesPostgres)
-		// homeGroup.GET("", handlers.GetHomePageDataSupabase)
-		// homeGroup.GET("/search", handlers.SearchStoresSupabase)
-		// homeGroup.POST("/stores/:id/save", handlers.SaveStoreSupabase)
-		// homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStoreSupabase)
-		// homeGroup.GET("/stores/favorites", handlers.GetFavoritesSupabase)
-		// homeGroup.GET("", handlers.GetHomePageDataHTTP)
-		// homeGroup.GET("/search", handlers.SearchStoresHTTP)
-		// homeGroup.POST("/stores/:id/save", handlers.SaveStoreHTTP)
-		// homeGroup.POST("/stores/:id/unsave", handlers.UnsaveStoreHTTP)
-		// homeGroup.GET("/stores/favorites", handlers.GetFavoritesHTTP)
-
-		// Alternative implementations (uncomment to use):
-		// HTTP API approach:
-		// homeGroup.GET("", handlers.GetHomePageDataHTTP)
-		// homeGroup.GET("/search", handlers.SearchStoresHTTP)
-
-		// Client wrapper approach:
-		// homeGroup.GET("", handlers.GetHomePageDataSupabase)
-		// homeGroup.GET("/search", handlers.SearchStoresSupabase)
-
-		// Legacy approach:
-		// homeGroup.GET("", handlers.GetHomePageData)
-		// homeGroup.GET("/search", handlers.SearchStores)
 	}
 
 	storesGroup := r.Group("/api/stores")
