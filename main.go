@@ -82,7 +82,7 @@ func main() {
 	}
 
 	// Set the database for both legacy and new handlers
-	db.DB = supabaseDB                 // For legacy handlers
+	db.DB = supabaseDB // For legacy handlers
 
 	// Initialize Stripe
 	stripeKey := os.Getenv("STRIPE_SECRET_KEY")
@@ -103,15 +103,38 @@ func main() {
 	r := gin.Default()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	// Initialize session store
-	store := cookie.NewStore([]byte("secret"))
+	// Initialize session store with better configuration
+	sessionSecret := os.Getenv("SESSION_SECRET")
+	if sessionSecret == "" {
+		sessionSecret = "savor-session-secret-key-change-in-production" // Better default
+		log.Printf("Warning: Using default session secret. Set SESSION_SECRET environment variable.")
+	}
+
+	store := cookie.NewStore([]byte(sessionSecret))
+	// Configure session store for cross-origin
+	store.Options(sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7, // 7 days
+		HttpOnly: true,
+		Secure:   false, // Set to true in production with HTTPS
+		SameSite: 2,     // Lax mode for cross-origin compatibility
+	})
+
 	r.Use(sessions.Sessions("savor_session", store))
+	log.Printf("Session store configured with cookie options")
 
 	// Add CORS middleware
-	allowedOrigins := []string{"http://localhost:3000"}
+	allowedOrigins := []string{
+		"http://localhost:3000",
+		"http://localhost:3001",  // Add additional local ports
+		"https://localhost:3000", // SSL local development
+	}
 	if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
 		allowedOrigins = append(allowedOrigins, frontendURL)
 	}
+
+	// Log allowed origins for debugging
+	log.Printf("CORS allowed origins: %v", allowedOrigins)
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     allowedOrigins,
