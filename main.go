@@ -94,6 +94,10 @@ func main() {
 	// Initialize Google Maps
 	services.InitializeGoogleMaps()
 
+	// Initialize Notification Service
+	services.InitializeNotificationService()
+	log.Printf("Notification service initialized")
+
 	// Initialize Gin router with appropriate mode
 	ginMode := os.Getenv("GIN_MODE")
 	if ginMode == "" {

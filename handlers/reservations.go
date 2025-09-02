@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"savor-server/db"
+	"savor-server/services"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -223,6 +224,29 @@ func CreateGuestReservation(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reservation"})
 		return
 	}
+
+	// Send notification (don't fail if notification fails)
+	go func() {
+		if services.NotificationSvc != nil {
+			notificationData := services.ReservationNotificationData{
+				CustomerName:  req.Name,
+				StoreName:     req.StoreName,
+				StoreAddress:  req.StoreAddress,
+				Quantity:      req.Quantity,
+				TotalAmount:   req.TotalAmount,
+				PickupTime:    req.PickupTime,
+				ReservationID: reservation.ID,
+				Email:         req.Email,
+				Phone:         req.Phone,
+			}
+
+			if err := services.NotificationSvc.SendReservationConfirmation(notificationData); err != nil {
+				log.Printf("Failed to send notification: %v", err)
+			} else {
+				log.Printf("Notification sent successfully for reservation %s", reservation.ID)
+			}
+		}
+	}()
 
 	c.JSON(http.StatusOK, reservation)
 }
