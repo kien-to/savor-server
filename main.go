@@ -126,11 +126,19 @@ func main() {
 	// Add CORS middleware
 	allowedOrigins := []string{
 		"http://localhost:3000",
-		"http://localhost:3001",  // Add additional local ports
-		"https://localhost:3000", // SSL local development
+		"http://localhost:3001",              // Add additional local ports
+		"https://localhost:3000",             // SSL local development
+		"https://savor-web-lemon.vercel.app", // Your Vercel deployment
 	}
+
+	// Add any additional frontend URLs from environment
 	if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
 		allowedOrigins = append(allowedOrigins, frontendURL)
+	}
+
+	// Also allow any Vercel preview deployments
+	if vercelURL := os.Getenv("VERCEL_URL"); vercelURL != "" {
+		allowedOrigins = append(allowedOrigins, "https://"+vercelURL)
 	}
 
 	// Log allowed origins for debugging
