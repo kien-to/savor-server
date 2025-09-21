@@ -15,25 +15,71 @@ import (
 func GetStoreDetail(c *gin.Context) {
 	storeID := c.Param("id")
 
-	var modelStore models.Store
-	err := db.DB.Get(&modelStore, `
-		SELECT s.*, 
-			   array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
-		FROM stores s
-		LEFT JOIN store_highlights sh ON s.id = sh.store_id
-		WHERE s.id = $1
-		GROUP BY s.id
-	`, storeID)
+	// Debug: Log the incoming request
+	log.Printf("DEBUG: GetStoreDetail called with storeID: '%s'", storeID)
+	log.Printf("DEBUG: Request URL: %s", c.Request.URL.String())
+	log.Printf("DEBUG: Request Method: %s", c.Request.Method)
 
-	if err != nil {
-		log.Println("Error fetching store:", err)
-		fmt.Println("Error fetching store:", err)
+	// Debug: Check if storeID is empty or invalid
+	if storeID == "" {
+		log.Printf("ERROR: storeID is empty")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Store ID is required"})
+		return
+	}
+
+	// Debug: First check if store exists with a simple query
+	var storeExists bool
+	existsErr := db.DB.Get(&storeExists, `SELECT EXISTS(SELECT 1 FROM stores WHERE id = $1)`, storeID)
+	if existsErr != nil {
+		log.Printf("ERROR: Failed to check if store exists: %v", existsErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error checking store existence"})
+		return
+	}
+
+	log.Printf("DEBUG: Store exists check - storeID: '%s', exists: %v", storeID, storeExists)
+
+	if !storeExists {
+		// Debug: List all existing store IDs to help with debugging
+		var allStoreIDs []string
+		listErr := db.DB.Select(&allStoreIDs, `SELECT id FROM stores LIMIT 10`)
+		if listErr != nil {
+			log.Printf("ERROR: Failed to list existing stores: %v", listErr)
+		} else {
+			log.Printf("DEBUG: Available store IDs in database: %v", allStoreIDs)
+		}
+
+		log.Printf("ERROR: Store with ID '%s' does not exist in database", storeID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Store not found"})
 		return
 	}
 
+	var modelStore models.Store
+	query := `
+	SELECT * FROM stores WHERE id = $1
+	`
+	// SELECT s.*,
+	//            array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
+	//     FROM stores s
+	//     LEFT JOIN store_highlights sh ON s.id = sh.store_id
+	//     WHERE s.id = $1
+	//     GROUP BY s.id
+
+	log.Printf("DEBUG: Executing main query with storeID: '%s'", storeID)
+	err := db.DB.Get(&modelStore, query, storeID)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to fetch store details - storeID: '%s', error: %v", storeID, err)
+		fmt.Printf("ERROR: Database query failed: %v\n", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Store not found"})
+		return
+	}
+
+	log.Printf("DEBUG: Successfully fetched store - ID: '%s', Title: '%s'", modelStore.ID, modelStore.Title)
+
 	// Check if store is saved by user
 	userID := c.GetString("user_id") // From auth middleware
+	log.Printf("DEBUG: Checking if store is saved by user - userID: '%s', storeID: '%s'", userID, storeID)
+
 	var saved bool
 	err = db.DB.Get(&saved, `
 		SELECT EXISTS(
@@ -41,6 +87,14 @@ func GetStoreDetail(c *gin.Context) {
 			WHERE user_id = $1 AND store_id = $2
 		)
 	`, userID, storeID)
+
+	if err != nil {
+		log.Printf("WARNING: Failed to check if store is saved by user: %v", err)
+		// Don't fail the request, just assume not saved
+		saved = false
+	} else {
+		log.Printf("DEBUG: Store saved status - userID: '%s', storeID: '%s', saved: %v", userID, storeID, saved)
+	}
 
 	// Convert to response format
 	description := ""
@@ -160,6 +214,7 @@ func GetStoreDetail(c *gin.Context) {
 		BusinessHours: modelStore.BusinessHours,
 	}
 
+	log.Printf("DEBUG: Returning successful response for storeID: '%s'", storeID)
 	c.JSON(http.StatusOK, responseStore)
 }
 

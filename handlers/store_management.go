@@ -190,7 +190,7 @@ func GetMyStore(c *gin.Context) {
 }
 
 func UpdateStore(c *gin.Context) {
-	userID := c.GetString("userID")
+	userID := c.GetString("user_id")
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -193,8 +194,7 @@ func GetHomePageData(c *gin.Context) {
 			false as is_saved,  -- Set to false for now since we're not checking saved_stores
 			ARRAY[]::text[] as highlights  -- Empty array since we're not checking store_highlights
 		FROM stores s
-		ORDER BY s.rating DESC 
-		LIMIT 20
+		LIMIT 50
 	`)
 
 	if err != nil {
@@ -222,20 +222,76 @@ func GetHomePageData(c *gin.Context) {
 	// Additional debug: Log the exact SQL query being executed
 	log.Printf("[BACKEND] 🔍 DEBUG: Database contains only %d stores. Expected ~15 stores from CSV import.", len(stores))
 
-	// Calculate distances using Google Maps API
+	// Calculate distances using Google Maps API and sort by distance
 	if services.GoogleMaps != nil {
 		log.Printf("[BACKEND] Google Maps service available, calculating distances")
-		for i := range stores {
-			if stores[i].Latitude != 0 && stores[i].Longitude != 0 {
-				distanceResult, err := services.GoogleMaps.CalculateDistance(userLat, userLng, stores[i].Latitude, stores[i].Longitude)
+
+		// Create a slice to hold stores with their calculated distance in meters
+		type storeWithDistance struct {
+			store          models.Store
+			distanceStr    string
+			distanceMeters int
+		}
+		var storesWithDistances []storeWithDistance
+
+		for _, store := range stores {
+			if store.Latitude != 0 && store.Longitude != 0 {
+				distanceResult, err := services.GoogleMaps.CalculateDistance(userLat, userLng, store.Latitude, store.Longitude)
 				if err == nil && distanceResult != nil {
 					distanceStr := distanceResult.Distance
-					stores[i].Distance = &distanceStr
-				} else if err != nil {
-					log.Printf("[BACKEND] Distance calculation failed for store %s: %v", stores[i].ID, err)
+					store.Distance = &distanceStr
+					storesWithDistances = append(storesWithDistances, storeWithDistance{
+						store:          store,
+						distanceStr:    distanceStr,
+						distanceMeters: distanceResult.Meters,
+					})
+				} else {
+					log.Printf("[BACKEND] Distance calculation failed for store %s: %v", store.ID, err)
+					// Add store with default distance if calculation fails
+					defaultDistance := "~km"
+					store.Distance = &defaultDistance
+					storesWithDistances = append(storesWithDistances, storeWithDistance{
+						store:          store,
+						distanceStr:    defaultDistance,
+						distanceMeters: 999999, // Large number to put at end
+					})
 				}
+			} else {
+				// Add store with default distance if no coordinates
+				defaultDistance := "~km"
+				store.Distance = &defaultDistance
+				storesWithDistances = append(storesWithDistances, storeWithDistance{
+					store:          store,
+					distanceStr:    defaultDistance,
+					distanceMeters: 999999, // Large number to put at end
+				})
 			}
 		}
+
+		// Sort stores by distance (closest first)
+		sort.Slice(storesWithDistances, func(i, j int) bool {
+			return storesWithDistances[i].distanceMeters < storesWithDistances[j].distanceMeters
+		})
+
+		// Log the sorted distances for debugging
+		log.Printf("[BACKEND] Distance sorting results:")
+		for i, swd := range storesWithDistances {
+			if i < 15 { // Log first 15 for debugging
+				log.Printf("[BACKEND] %d. %s: %s (%d meters)", i+1, swd.store.Title, swd.distanceStr, swd.distanceMeters)
+			}
+		}
+
+		// Extract sorted stores (limit to top 20 closest)
+		maxStores := len(storesWithDistances)
+		if maxStores > 20 {
+			maxStores = 20
+		}
+		stores = make([]models.Store, maxStores)
+		for i := 0; i < maxStores; i++ {
+			stores[i] = storesWithDistances[i].store
+		}
+
+		log.Printf("[BACKEND] Stores sorted by distance - returning %d closest stores", maxStores)
 	} else {
 		log.Printf("[BACKEND] WARNING: Google Maps service not available")
 	}
@@ -407,8 +463,7 @@ func SearchStores(c *gin.Context) {
 			COALESCE(s.title, '') ILIKE $1 OR 
 			COALESCE(s.description, '') ILIKE $1 OR 
 			COALESCE(s.address, '') ILIKE $1
-		ORDER BY s.rating DESC
-		LIMIT 20
+		LIMIT 50
 	`, "%"+query+"%")
 
 	if err != nil {
@@ -425,17 +480,65 @@ func SearchStores(c *gin.Context) {
 			i+1, store.ID, store.Title, query)
 	}
 
-	// Calculate distances using Google Maps API if user location is provided
+	// Calculate distances using Google Maps API if user location is provided and sort by distance
 	if services.GoogleMaps != nil && userLat != 0 && userLng != 0 {
-		for i := range modelStores {
-			if modelStores[i].Latitude != 0 && modelStores[i].Longitude != 0 {
-				distanceResult, err := services.GoogleMaps.CalculateDistance(userLat, userLng, modelStores[i].Latitude, modelStores[i].Longitude)
+		// Create a slice to hold stores with their calculated distance in meters
+		type storeWithDistance struct {
+			store          models.Store
+			distanceStr    string
+			distanceMeters int
+		}
+		var storesWithDistances []storeWithDistance
+
+		for _, store := range modelStores {
+			if store.Latitude != 0 && store.Longitude != 0 {
+				distanceResult, err := services.GoogleMaps.CalculateDistance(userLat, userLng, store.Latitude, store.Longitude)
 				if err == nil && distanceResult != nil {
 					distanceStr := distanceResult.Distance
-					modelStores[i].Distance = &distanceStr
+					store.Distance = &distanceStr
+					storesWithDistances = append(storesWithDistances, storeWithDistance{
+						store:          store,
+						distanceStr:    distanceStr,
+						distanceMeters: distanceResult.Meters,
+					})
+				} else {
+					// Add store with default distance if calculation fails
+					defaultDistance := "~km"
+					store.Distance = &defaultDistance
+					storesWithDistances = append(storesWithDistances, storeWithDistance{
+						store:          store,
+						distanceStr:    defaultDistance,
+						distanceMeters: 999999, // Large number to put at end
+					})
 				}
+			} else {
+				// Add store with default distance if no coordinates
+				defaultDistance := "~km"
+				store.Distance = &defaultDistance
+				storesWithDistances = append(storesWithDistances, storeWithDistance{
+					store:          store,
+					distanceStr:    defaultDistance,
+					distanceMeters: 999999, // Large number to put at end
+				})
 			}
 		}
+
+		// Sort stores by distance (closest first)
+		sort.Slice(storesWithDistances, func(i, j int) bool {
+			return storesWithDistances[i].distanceMeters < storesWithDistances[j].distanceMeters
+		})
+
+		// Extract sorted stores (limit to top 20 closest)
+		maxStores := len(storesWithDistances)
+		if maxStores > 20 {
+			maxStores = 20
+		}
+		modelStores = make([]models.Store, maxStores)
+		for i := 0; i < maxStores; i++ {
+			modelStores[i] = storesWithDistances[i].store
+		}
+
+		log.Printf("[BACKEND] Search results sorted by distance - returning %d closest stores", maxStores)
 	}
 
 	// Convert model stores to response stores
