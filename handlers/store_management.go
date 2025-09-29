@@ -175,7 +175,7 @@ func GetMyStore(c *gin.Context) {
 		ID:          modelStore.ID,
 		Title:       modelStore.Title,
 		Description: description,
-		StoreType:   modelStore.StoreType,
+		StoreType:   modelStore.StoreType.String,
 		Address:     modelStore.Address,
 		City:        city,
 		State:       state,

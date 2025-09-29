@@ -12,6 +12,7 @@ import (
 
 	"savor-server/config"
 	"savor-server/db"
+	// "savor-server/db"
 	_ "savor-server/docs" // This will be auto-generated
 	"savor-server/handlers"
 	"savor-server/middleware"
@@ -69,22 +70,22 @@ func main() {
 	}
 
 	// Initialize Supabase PostgreSQL connection using official methods
-	supabaseDB, err := config.InitializeSupabaseDB()
-	if err != nil {
-		log.Fatalf("Failed to initialize Supabase database: %v", err)
-	}
-	defer supabaseDB.Close()
+	// supabaseDB, err := config.InitializeSupabaseDB()
+	// if err != nil {
+	// 	log.Fatalf("Failed to initialize Supabase database: %v", err)
+	// }
+	// defer supabaseDB.Close()
 
-	// Test the connection
-	err = supabaseDB.Ping()
-	if err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
-	}
+	// // Test the connection
+	// err = supabaseDB.Ping()
+	// if err != nil {
+	// 	log.Fatalf("Failed to ping database: %v", err)
+	// }
 
 	// Set the database for both legacy and new handlers
-	db.DB = supabaseDB // For legacy handlers
+	// db.DB = supabaseDB 
 
-	// db.Init()
+	db.Init()
 
 	// Initialize Stripe
 	stripeKey := os.Getenv("STRIPE_SECRET_KEY")

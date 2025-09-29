@@ -85,7 +85,7 @@ func ConfirmReservation(c *gin.Context) {
 		return
 	}
 
-	// After payment verification, create reservation record in database
+	// Create reservation record in database
 	_, err = db.DB.Exec(`
 		INSERT INTO reservations (
 			user_id, 
@@ -107,7 +107,7 @@ func ConfirmReservation(c *gin.Context) {
 	)
 
 	if err != nil {
-		fmt.Println("Failed to create reservation record", err)
+		fmt.Printf("Failed to create reservation record: %v\n", err)
 		c.JSON(500, gin.H{"error": "Failed to create reservation record"})
 		return
 	}
@@ -138,6 +138,7 @@ func ConfirmReservation(c *gin.Context) {
 func ConfirmPayAtStore(c *gin.Context) {
 	var req PayAtStoreRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Printf("Failed to bind JSON: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -145,7 +146,7 @@ func ConfirmPayAtStore(c *gin.Context) {
 	// Get the payment intent to retrieve metadata
 	pi, err := paymentintent.Get(req.PaymentIntentId, nil)
 	if err != nil {
-		fmt.Println("Failed to retrieve payment intent", err)
+		fmt.Printf("Failed to retrieve payment intent: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve payment intent"})
 		return
 	}
@@ -174,7 +175,7 @@ func ConfirmPayAtStore(c *gin.Context) {
 		userID, storeID, quantity, totalAmount, "pending", "pay_at_store_"+req.PaymentIntentId, pickupTime)
 
 	if err != nil {
-		fmt.Println("Failed to create reservation", err)
+		fmt.Printf("Failed to create reservation: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation"})
 		return
 	}

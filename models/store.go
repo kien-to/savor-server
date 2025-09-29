@@ -47,7 +47,7 @@ type Store struct {
 	Highlights      pq.StringArray  `json:"highlights" db:"highlights"`
 	IsSaved         bool            `json:"isSaved" db:"is_saved"`
 	IsSelling       bool            `json:"isSelling" db:"is_selling"`
-	StoreType       string          `json:"storeType" db:"store_type"`
+	StoreType       sql.NullString  `json:"storeType" db:"store_type"`
 	BusinessHours   types.JSONText  `json:"businessHours" db:"business_hours"`
 	CreatedAt       time.Time       `json:"createdAt" db:"created_at"`
 	UpdatedAt       time.Time       `json:"updatedAt" db:"updated_at"`
@@ -85,7 +85,7 @@ func (s Store) MarshalJSON() ([]byte, error) {
 		Highlights      []string  `json:"highlights"`
 		IsSaved         bool      `json:"isSaved"`
 		IsSelling       bool      `json:"isSelling"`
-		StoreType       string    `json:"storeType"`
+		StoreType       *string   `json:"storeType"`
 		CreatedAt       time.Time `json:"createdAt"`
 		UpdatedAt       time.Time `json:"updatedAt"`
 	}{
@@ -100,7 +100,6 @@ func (s Store) MarshalJSON() ([]byte, error) {
 		Highlights:    s.Highlights,
 		IsSaved:       s.IsSaved,
 		IsSelling:     s.IsSelling,
-		StoreType:     s.StoreType,
 		CreatedAt:     s.CreatedAt,
 		UpdatedAt:     s.UpdatedAt,
 	}
@@ -132,6 +131,9 @@ func (s Store) MarshalJSON() ([]byte, error) {
 	}
 	if s.GoogleMapsURL.Valid {
 		result.GoogleMapsURL = &s.GoogleMapsURL.String
+	}
+	if s.StoreType.Valid {
+		result.StoreType = &s.StoreType.String
 	}
 
 	// Handle nullable floats

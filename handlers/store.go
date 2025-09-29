@@ -210,7 +210,7 @@ func GetStoreDetail(c *gin.Context) {
 		Longitude:     modelStore.Longitude,
 		Highlights:    modelStore.Highlights,
 		IsSaved:       saved,
-		StoreType:     modelStore.StoreType,
+		StoreType:     modelStore.StoreType.String,
 		BusinessHours: modelStore.BusinessHours,
 	}
 

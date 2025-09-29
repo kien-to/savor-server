@@ -38,15 +38,56 @@ type ReservationResponse struct {
 }
 
 func GetUserReservations(c *gin.Context) {
+	// Debug: Log all headers and context values
+	log.Printf("DEBUG: GetUserReservations called")
+	log.Printf("DEBUG: Authorization header: %s", c.GetHeader("Authorization"))
+	log.Printf("DEBUG: Content-Type header: %s", c.GetHeader("Content-Type"))
+	log.Printf("DEBUG: Request method: %s", c.Request.Method)
+	log.Printf("DEBUG: Request URL: %s", c.Request.URL.String())
+
+	// Check all context keys
+	for key, value := range c.Keys {
+		log.Printf("DEBUG: Context key '%s' = %v", key, value)
+	}
+
 	userID := c.GetString("user_id")
+	log.Printf("DEBUG: Retrieved userID from context: '%s'", userID)
+
 	if userID == "" {
-		fmt.Println("User not authenticated")
+		log.Printf("ERROR: User not authenticated - userID is empty")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
+	log.Printf("DEBUG: GetUserReservations called for userID: %s", userID)
+
+	// Check if reservations table exists
+	var tableExists bool
+	err := db.DB.Get(&tableExists, `
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'reservations'
+		)
+	`)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to check if reservations table exists: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	log.Printf("DEBUG: Reservations table exists: %v", tableExists)
+
+	if !tableExists {
+		log.Printf("WARNING: Reservations table does not exist, returning empty array")
+		// Return empty array since table doesn't exist yet
+		c.JSON(http.StatusOK, []ReservationResponse{})
+		return
+	}
+
 	var reservations []ReservationResponse
-	err := db.DB.Select(&reservations, `
+	err = db.DB.Select(&reservations, `
 		SELECT 
 			r.id,
 			r.store_id,
@@ -70,11 +111,12 @@ func GetUserReservations(c *gin.Context) {
 	`, userID)
 
 	if err != nil {
-		fmt.Printf("Failed to fetch reservations: %v\n", err)
+		log.Printf("ERROR: Failed to fetch reservations for userID %s: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch reservations"})
 		return
 	}
 
+	log.Printf("DEBUG: Found %d reservations for userID: %s", len(reservations), userID)
 	c.JSON(http.StatusOK, reservations)
 }
 
@@ -299,6 +341,28 @@ func DeleteReservation(c *gin.Context) {
 
 	// For logged-in users, delete from database
 	log.Printf("Attempting to delete reservation %s for user %s", reservationID, userID)
+
+	// Check if reservations table exists first
+	var tableExists bool
+	err := db.DB.Get(&tableExists, `
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'reservations'
+		)
+	`)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to check if reservations table exists: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	if !tableExists {
+		log.Printf("WARNING: Reservations table does not exist, cannot delete reservation %s", reservationID)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
+		return
+	}
 
 	result, err := db.DB.Exec(`
 		DELETE FROM reservations 
