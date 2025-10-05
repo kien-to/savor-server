@@ -32,11 +32,16 @@ TWILIO_PHONE_NUMBER=+1234567890
 # Database, Firebase, Stripe, Google Maps, etc.
 DATABASE_URL=your_database_url
 FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_API_KEY=your_firebase_web_api_key  # Required for email/password authentication
 STRIPE_SECRET_KEY=your_stripe_key
 GOOGLE_MAPS_API_KEY=your_maps_key
 SESSION_SECRET=your_session_secret
 FRONTEND_URL=https://your-frontend-url.com
 ```
+
+**Note:** The `FIREBASE_API_KEY` is your Firebase project's Web API Key, which can be found in:
+1. Firebase Console → Project Settings → General → Web API Key
+2. This is different from the service account credentials and is required for email/password authentication
 
 ## Testing Notifications
 

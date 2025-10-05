@@ -206,6 +206,136 @@ type GuestReservationRequest struct {
 	PaymentType     string  `json:"paymentType"`
 }
 
+func CreateAuthenticatedReservation(c *gin.Context) {
+	// Get user ID from context (set by auth middleware)
+	userID := c.GetString("user_id")
+	if userID == "" {
+		log.Printf("ERROR: User not authenticated - userID is empty")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var req GuestReservationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("Failed to bind JSON: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	// Validate required fields
+	if req.StoreID == "" || req.Quantity < 1 || req.Name == "" {
+		log.Printf("Invalid request data: %v", req)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required fields"})
+		return
+	}
+
+	log.Printf("Creating authenticated reservation for user %s: %v", userID, req)
+
+	// Create a new reservation
+	reservation := ReservationResponse{
+		ID:              fmt.Sprintf("auth-%d", time.Now().Unix()),
+		StoreID:         req.StoreID,
+		StoreName:       req.StoreName,
+		StoreImage:      req.StoreImage,
+		StoreAddress:    req.StoreAddress,
+		StoreLatitude:   req.StoreLatitude,
+		StoreLongitude:  req.StoreLongitude,
+		Quantity:        req.Quantity,
+		TotalAmount:     req.TotalAmount,
+		OriginalPrice:   req.OriginalPrice,
+		DiscountedPrice: req.DiscountedPrice,
+		Status:          "pending",
+		PaymentID:       fmt.Sprintf("pay-%d", time.Now().Unix()),
+		PickupTime:      &req.PickupTime,
+		CreatedAt:       time.Now(),
+	}
+
+	// Check if reservations table exists
+	var tableExists bool
+	err := db.DB.Get(&tableExists, `
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'reservations'
+		)
+	`)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to check if reservations table exists: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+
+	if !tableExists {
+		log.Printf("WARNING: Reservations table does not exist, creating reservation in session instead")
+		// Fall back to session storage if table doesn't exist
+		session := sessions.Default(c)
+		var reservations []ReservationResponse
+
+		// Get existing reservations from session
+		if sessionReservations := session.Get("reservations"); sessionReservations != nil {
+			reservations = sessionReservations.([]ReservationResponse)
+		}
+
+		// Add new reservation
+		reservations = append(reservations, reservation)
+
+		// Save to session
+		session.Set("reservations", reservations)
+		if err := session.Save(); err != nil {
+			log.Printf("Failed to save reservation to session: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reservation"})
+			return
+		}
+
+		log.Printf("Reservation saved to session for user %s", userID)
+		c.JSON(http.StatusOK, reservation)
+		return
+	}
+
+	// Insert into database
+	_, err = db.DB.Exec(`
+		INSERT INTO reservations (
+			id, user_id, store_id, quantity, total_amount, 
+			status, payment_id, pickup_time, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, reservation.ID, userID, req.StoreID, req.Quantity, req.TotalAmount,
+		reservation.Status, reservation.PaymentID, req.PickupTime, reservation.CreatedAt)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to insert reservation into database: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation"})
+		return
+	}
+
+	log.Printf("Reservation created successfully in database for user %s", userID)
+
+	// Send notification (don't fail if notification fails)
+	go func() {
+		if services.NotificationSvc != nil {
+			notificationData := services.ReservationNotificationData{
+				CustomerName:  req.Name,
+				StoreName:     req.StoreName,
+				StoreAddress:  req.StoreAddress,
+				Quantity:      req.Quantity,
+				TotalAmount:   req.TotalAmount,
+				PickupTime:    req.PickupTime,
+				ReservationID: reservation.ID,
+				Email:         req.Email,
+				Phone:         req.Phone,
+			}
+
+			if err := services.NotificationSvc.SendReservationConfirmation(notificationData); err != nil {
+				log.Printf("Failed to send notification: %v", err)
+			} else {
+				log.Printf("Notification sent successfully for reservation %s", reservation.ID)
+			}
+		}
+	}()
+
+	c.JSON(http.StatusOK, reservation)
+}
+
 func CreateGuestReservation(c *gin.Context) {
 	var req GuestReservationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

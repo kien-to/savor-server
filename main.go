@@ -12,6 +12,7 @@ import (
 
 	"savor-server/config"
 	"savor-server/db"
+
 	// "savor-server/db"
 	_ "savor-server/docs" // This will be auto-generated
 	"savor-server/handlers"
@@ -69,7 +70,7 @@ func main() {
 		log.Fatalf("Error creating Firebase Auth client: %v\n", err)
 	}
 
-	// Initialize Supabase PostgreSQL connection using official methods
+	// // Initialize Supabase PostgreSQL connection using official methods
 	// supabaseDB, err := config.InitializeSupabaseDB()
 	// if err != nil {
 	// 	log.Fatalf("Failed to initialize Supabase database: %v", err)
@@ -82,8 +83,8 @@ func main() {
 	// 	log.Fatalf("Failed to ping database: %v", err)
 	// }
 
-	// Set the database for both legacy and new handlers
-	// db.DB = supabaseDB 
+	// // Set the database for both legacy and new handlers
+	// db.DB = supabaseDB
 
 	db.Init()
 
@@ -186,6 +187,7 @@ func main() {
 	protected.Use(middleware.AuthMiddleware(authClient))
 	{
 		protected.GET("/profile", handlers.GetProfile)
+		protected.PUT("/profile", handlers.UpdateProfile)
 	}
 
 	// Home routes - Direct Supabase PostgreSQL (Recommended)
@@ -224,6 +226,7 @@ func main() {
 	{
 		// reservationsGroup.GET("", handlers.GetReservations)
 		reservationsGroup.GET("", middleware.AuthMiddleware(authClient), handlers.GetUserReservations)
+		reservationsGroup.POST("", middleware.AuthMiddleware(authClient), handlers.CreateAuthenticatedReservation)
 		reservationsGroup.GET("/demo", handlers.GetDemoReservations)
 		reservationsGroup.GET("/session", handlers.GetSessionReservations)
 		reservationsGroup.GET("/guest", handlers.GetGuestReservations)
