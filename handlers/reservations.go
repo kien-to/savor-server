@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func init() {
@@ -210,6 +211,7 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)
 	userID := c.GetString("user_id")
 	if userID == "" {
+		fmt.Printf("User not authenticated - userID is empty")
 		log.Printf("ERROR: User not authenticated - userID is empty")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -217,6 +219,7 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 
 	var req GuestReservationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Printf("Failed to bind JSON: %v", err)
 		log.Printf("Failed to bind JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
@@ -224,16 +227,18 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 
 	// Validate required fields
 	if req.StoreID == "" || req.Quantity < 1 || req.Name == "" {
+		fmt.Printf("Invalid request data: %v", req)
 		log.Printf("Invalid request data: %v", req)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required fields"})
 		return
 	}
 
 	log.Printf("Creating authenticated reservation for user %s: %v", userID, req)
+	fmt.Printf("Creating authenticated reservation for user %s: %v", userID, req)
 
-	// Create a new reservation
+	// Create a new reservation (use UUID for DB uuid type)
 	reservation := ReservationResponse{
-		ID:              fmt.Sprintf("auth-%d", time.Now().Unix()),
+		ID:              uuid.New().String(),
 		StoreID:         req.StoreID,
 		StoreName:       req.StoreName,
 		StoreImage:      req.StoreImage,
@@ -262,34 +267,14 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: Failed to check if reservations table exists: %v", err)
+		fmt.Printf("ERROR: Failed to check if reservations table exists: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
 
 	if !tableExists {
-		log.Printf("WARNING: Reservations table does not exist, creating reservation in session instead")
-		// Fall back to session storage if table doesn't exist
-		session := sessions.Default(c)
-		var reservations []ReservationResponse
-
-		// Get existing reservations from session
-		if sessionReservations := session.Get("reservations"); sessionReservations != nil {
-			reservations = sessionReservations.([]ReservationResponse)
-		}
-
-		// Add new reservation
-		reservations = append(reservations, reservation)
-
-		// Save to session
-		session.Set("reservations", reservations)
-		if err := session.Save(); err != nil {
-			log.Printf("Failed to save reservation to session: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save reservation"})
-			return
-		}
-
-		log.Printf("Reservation saved to session for user %s", userID)
-		c.JSON(http.StatusOK, reservation)
+		log.Printf("ERROR: Reservations table does not exist")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Reservations table missing"})
 		return
 	}
 
