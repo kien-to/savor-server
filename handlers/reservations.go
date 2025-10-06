@@ -21,21 +21,22 @@ func init() {
 }
 
 type ReservationResponse struct {
-	ID              string    `db:"id" json:"id"`
-	StoreID         string    `db:"store_id" json:"storeId"`
-	StoreName       string    `db:"store_name" json:"storeName"`
-	StoreImage      string    `db:"store_image" json:"storeImage"`
-	StoreAddress    string    `db:"store_address" json:"storeAddress"`
-	StoreLatitude   float64   `db:"store_latitude" json:"storeLatitude"`
-	StoreLongitude  float64   `db:"store_longitude" json:"storeLongitude"`
-	Quantity        int       `db:"quantity" json:"quantity"`
-	TotalAmount     float64   `db:"total_amount" json:"totalAmount"`
-	Status          string    `db:"status" json:"status"`
-	PaymentID       string    `db:"payment_id" json:"paymentId"`
-	PickupTime      *string   `db:"pickup_time" json:"pickupTime,omitempty"`
-	CreatedAt       time.Time `db:"created_at" json:"createdAt"`
-	OriginalPrice   float64   `db:"original_price" json:"originalPrice"`
-	DiscountedPrice float64   `db:"discounted_price" json:"discountedPrice"`
+	ID              string     `db:"id" json:"id"`
+	StoreID         string     `db:"store_id" json:"storeId"`
+	StoreName       string     `db:"store_name" json:"storeName"`
+	StoreImage      string     `db:"store_image" json:"storeImage"`
+	StoreAddress    string     `db:"store_address" json:"storeAddress"`
+	StoreLatitude   float64    `db:"store_latitude" json:"storeLatitude"`
+	StoreLongitude  float64    `db:"store_longitude" json:"storeLongitude"`
+	Quantity        int        `db:"quantity" json:"quantity"`
+	TotalAmount     float64    `db:"total_amount" json:"totalAmount"`
+	Status          string     `db:"status" json:"status"`
+	PaymentID       string     `db:"payment_id" json:"paymentId"`
+	PickupTime      *string    `db:"pickup_time" json:"pickupTime,omitempty"`
+	PickupTimestamp *time.Time `db:"pickup_timestamp" json:"pickupTimestamp,omitempty"`
+	CreatedAt       time.Time  `db:"created_at" json:"createdAt"`
+	OriginalPrice   float64    `db:"original_price" json:"originalPrice"`
+	DiscountedPrice float64    `db:"discounted_price" json:"discountedPrice"`
 }
 
 func GetUserReservations(c *gin.Context) {
@@ -87,6 +88,7 @@ func GetUserReservations(c *gin.Context) {
 		return
 	}
 
+	// Query reservations from database
 	var reservations []ReservationResponse
 	err = db.DB.Select(&reservations, `
 		SELECT 
@@ -102,12 +104,14 @@ func GetUserReservations(c *gin.Context) {
 			r.status,
 			r.payment_id,
 			r.pickup_time,
+			r.pickup_timestamp,
 			r.created_at,
 			s.original_price,
 			s.discounted_price
 		FROM reservations r
 		JOIN stores s ON r.store_id = s.id
-		WHERE r.user_id = $1
+		WHERE r.user_id = $1 
+		AND (r.pickup_timestamp IS NULL OR r.pickup_timestamp > NOW() - INTERVAL '24 hours')
 		ORDER BY r.created_at DESC
 	`, userID)
 
@@ -180,9 +184,6 @@ func GetDemoReservations(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, demoReservations)
-
-	// print errors
-
 }
 
 func stringPtr(s string) *string {
@@ -226,7 +227,7 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 	}
 
 	// Validate required fields
-	if req.StoreID == "" || req.Quantity < 1 || req.Name == "" {
+	if req.StoreID == "" || req.Quantity < 1 {
 		fmt.Printf("Invalid request data: %v", req)
 		log.Printf("Invalid request data: %v", req)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required fields"})
@@ -278,14 +279,23 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 		return
 	}
 
+	// Get store pickup timestamp directly from database
+	var pickupTimestamp time.Time
+	err = db.DB.Get(&pickupTimestamp, `SELECT pickup_timestamp FROM stores WHERE id = $1`, req.StoreID)
+	if err != nil {
+		log.Printf("WARNING: Failed to get store pickup timestamp for store %s: %v", req.StoreID, err)
+		// Fallback: current time + 2 hours
+		pickupTimestamp = time.Now().Add(2 * time.Hour)
+	}
+
 	// Insert into database
 	_, err = db.DB.Exec(`
 		INSERT INTO reservations (
 			id, user_id, store_id, quantity, total_amount, 
-			status, payment_id, pickup_time, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			status, payment_id, pickup_time, pickup_timestamp, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`, reservation.ID, userID, req.StoreID, req.Quantity, req.TotalAmount,
-		reservation.Status, reservation.PaymentID, req.PickupTime, reservation.CreatedAt)
+		reservation.Status, reservation.PaymentID, req.PickupTime, pickupTimestamp, reservation.CreatedAt)
 
 	if err != nil {
 		log.Printf("ERROR: Failed to insert reservation into database: %v", err)
@@ -340,6 +350,15 @@ func CreateGuestReservation(c *gin.Context) {
 	fmt.Printf("[DEBUG] StoreAddress received in request: '%s'\n", req.StoreAddress)
 	fmt.Printf("[DEBUG] StoreLatitude: %f, StoreLongitude: %f\n", req.StoreLatitude, req.StoreLongitude)
 
+	// Get store pickup timestamp directly from database
+	var pickupTimestamp time.Time
+	err := db.DB.Get(&pickupTimestamp, `SELECT pickup_timestamp FROM stores WHERE id = $1`, req.StoreID)
+	if err != nil {
+		log.Printf("WARNING: Failed to get store pickup timestamp for store %s: %v", req.StoreID, err)
+		// Fallback: current time + 2 hours
+		pickupTimestamp = time.Now().Add(2 * time.Hour)
+	}
+
 	// Create a new reservation
 	reservation := ReservationResponse{
 		ID:              fmt.Sprintf("guest-%d", time.Now().Unix()),
@@ -356,6 +375,7 @@ func CreateGuestReservation(c *gin.Context) {
 		Status:          "pending",
 		PaymentID:       fmt.Sprintf("pay-%d", time.Now().Unix()),
 		PickupTime:      &req.PickupTime,
+		PickupTimestamp: &pickupTimestamp,
 		CreatedAt:       time.Now(),
 	}
 
@@ -421,112 +441,76 @@ func DeleteReservation(c *gin.Context) {
 	reservationID := c.Param("id")
 	userID := c.GetString("user_id")
 
-	// For guest users, check session
-	if userID == "" {
-		session := sessions.Default(c)
-		if sessionReservations := session.Get("reservations"); sessionReservations != nil {
-			reservations, ok := sessionReservations.([]ReservationResponse)
-			if !ok {
-				log.Printf("Failed to cast session reservations to []ReservationResponse: %v", sessionReservations)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid session data"})
-				return
-			}
-
-			newReservations := make([]ReservationResponse, 0)
-			for _, r := range reservations {
-				if r.ID != reservationID {
-					newReservations = append(newReservations, r)
-				}
-			}
-
-			session.Set("reservations", newReservations)
-
-			if err := session.Save(); err != nil {
-				log.Printf("Failed to save session after deleting reservation: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
-				return
-			}
-		} else {
-			log.Printf("No reservations found in session for deletion request: %s", reservationID)
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Reservation deleted"})
-		return
-	}
-
 	// For logged-in users, delete from database
+	fmt.Printf("Attempting to delete reservation %s for user %s", reservationID, userID)
 	log.Printf("Attempting to delete reservation %s for user %s", reservationID, userID)
-
-	// Check if reservations table exists first
-	var tableExists bool
-	err := db.DB.Get(&tableExists, `
-		SELECT EXISTS (
-			SELECT FROM information_schema.tables 
-			WHERE table_schema = 'public' 
-			AND table_name = 'reservations'
-		)
-	`)
-
-	if err != nil {
-		log.Printf("ERROR: Failed to check if reservations table exists: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
-		return
-	}
-
-	if !tableExists {
-		log.Printf("WARNING: Reservations table does not exist, cannot delete reservation %s", reservationID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
-		return
-	}
 
 	result, err := db.DB.Exec(`
 		DELETE FROM reservations 
 		WHERE id = $1 AND user_id = $2
-		AND (pickup_time IS NULL OR pickup_time > NOW())
 	`, reservationID, userID)
 
 	if err != nil {
-		log.Printf("Database error deleting reservation %s: %v", reservationID, err)
+		fmt.Printf("ERROR: Failed to delete reservation %s: %v", reservationID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete reservation"})
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		log.Printf("Error checking rows affected for reservation %s: %v", reservationID, err)
+		fmt.Printf("ERROR: Failed to confirm deletion: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to confirm deletion"})
 		return
 	}
 
 	if rowsAffected == 0 {
-		// Check if the reservation exists but is expired
-		var exists bool
-		err = db.DB.QueryRow(`
-			SELECT EXISTS(
-				SELECT 1 FROM reservations 
-				WHERE id = $1 AND user_id = $2 AND pickup_time <= NOW()
-			)
-		`, reservationID, userID).Scan(&exists)
-
-		if err != nil {
-			log.Printf("Error checking if reservation %s is expired: %v", reservationID, err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check reservation status"})
-			return
-		}
-
-		if exists {
-			log.Printf("Attempted to delete expired reservation %s", reservationID)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete expired reservation"})
-			return
-		}
-
-		log.Printf("Reservation %s not found for user %s", reservationID, userID)
+		fmt.Printf("Reservation %s not found for user %s", reservationID, userID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
 		return
 	}
 
-	log.Printf("Successfully deleted reservation %s for user %s", reservationID, userID)
+	fmt.Printf("Successfully deleted reservation %s for user %s", reservationID, userID)
 	c.JSON(http.StatusOK, gin.H{"message": "Reservation deleted"})
+}
+
+func DeleteGuestReservation(c *gin.Context) {
+	reservationID := c.Param("id")
+
+	// Delete from session for guest users
+	session := sessions.Default(c)
+	if sessionReservations := session.Get("reservations"); sessionReservations != nil {
+		reservations, ok := sessionReservations.([]ReservationResponse)
+		if !ok {
+			log.Printf("Failed to cast session reservations to []ReservationResponse: %v", sessionReservations)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid session data"})
+			return
+		}
+
+		newReservations := make([]ReservationResponse, 0)
+		found := false
+		for _, r := range reservations {
+			if r.ID != reservationID {
+				newReservations = append(newReservations, r)
+			} else {
+				found = true
+			}
+		}
+
+		if found {
+			session.Set("reservations", newReservations)
+			if err := session.Save(); err != nil {
+				log.Printf("Failed to save session after deleting reservation: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
+				return
+			}
+			log.Printf("Successfully deleted guest reservation %s from session", reservationID)
+			c.JSON(http.StatusOK, gin.H{"message": "Reservation deleted"})
+			return
+		}
+	}
+
+	// Reservation not found in session
+	c.JSON(http.StatusNotFound, gin.H{"error": "Reservation not found"})
 }
 
 // GetGuestReservations handles fetching reservations for guest users from their session
@@ -554,22 +538,18 @@ func GetGuestReservations(c *gin.Context) {
 		fmt.Printf("[DEBUG] Reservation %d - ID: %s, StoreAddress: '%s'\n", i, res.ID, res.StoreAddress)
 	}
 
-	// Filter out expired reservations
+	// Filter out expired reservations (more than 24 hours past pickup time)
 	currentTime := time.Now()
 	activeReservations := make([]ReservationResponse, 0)
 	for _, res := range reservations {
-		if res.PickupTime == nil {
+		if res.PickupTimestamp == nil {
+			// Keep reservations without pickup timestamp
 			activeReservations = append(activeReservations, res)
 			continue
 		}
 
-		pickupTime, err := time.Parse(time.RFC3339, *res.PickupTime)
-		if err != nil {
-			log.Printf("Error parsing pickup time for reservation %s: %v", res.ID, err)
-			continue
-		}
-
-		if pickupTime.After(currentTime) {
+		// Keep reservation if pickup time is within 24 hours
+		if res.PickupTimestamp.After(currentTime.Add(-24 * time.Hour)) {
 			activeReservations = append(activeReservations, res)
 		}
 	}

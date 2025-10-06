@@ -231,7 +231,8 @@ func main() {
 		reservationsGroup.GET("/session", handlers.GetSessionReservations)
 		reservationsGroup.GET("/guest", handlers.GetGuestReservations)
 		reservationsGroup.POST("/guest", handlers.CreateGuestReservation)
-		reservationsGroup.DELETE("/:id", handlers.DeleteReservation)
+		reservationsGroup.DELETE("/guest/:id", handlers.DeleteGuestReservation)
+		reservationsGroup.DELETE("/:id", middleware.AuthMiddleware(authClient), handlers.DeleteReservation)
 	}
 
 	storeManagementGroup := r.Group("/api/store-management")

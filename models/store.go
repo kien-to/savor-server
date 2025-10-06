@@ -23,6 +23,7 @@ type Store struct {
 	Title           string          `json:"title" db:"title"`
 	Description     sql.NullString  `json:"description" db:"description"`
 	PickupTime      sql.NullString  `json:"pickUpTime" db:"pickup_time"`
+	PickupTimestamp sql.NullTime    `json:"pickupTimestamp" db:"pickup_timestamp"`
 	Distance        *string         `json:"distance" db:"distance"`
 	Price           sql.NullFloat64 `json:"price" db:"price"`
 	OriginalPrice   sql.NullFloat64 `json:"originalPrice" db:"original_price"`
@@ -56,38 +57,39 @@ type Store struct {
 func (s Store) MarshalJSON() ([]byte, error) {
 	// Create a struct for JSON marshaling with proper null handling
 	result := struct {
-		ID              string    `json:"id"`
-		OwnerID         string    `json:"ownerId"`
-		Title           string    `json:"title"`
-		Description     *string   `json:"description"`
-		PickupTime      *string   `json:"pickUpTime"`
-		Distance        *string   `json:"distance"`
-		Price           *float64  `json:"price"`
-		OriginalPrice   *float64  `json:"originalPrice"`
-		DiscountedPrice *float64  `json:"discountedPrice"`
-		BackgroundURL   string    `json:"backgroundUrl"`
-		AvatarURL       *string   `json:"avatarUrl"`
-		ImageURL        string    `json:"imageUrl"`
-		Rating          *float64  `json:"rating"`
-		Reviews         *int64    `json:"reviews"`
-		ReviewsCount    *int64    `json:"reviewsCount"`
-		Address         string    `json:"address"`
-		City            *string   `json:"city"`
-		State           *string   `json:"state"`
-		ZipCode         *string   `json:"zipCode"`
-		Country         *string   `json:"country"`
-		Phone           *string   `json:"phone"`
-		ItemsLeft       *int64    `json:"itemsLeft"`
-		BagsAvailable   *int64    `json:"bagsAvailable"`
-		Latitude        float64   `json:"latitude"`
-		Longitude       float64   `json:"longitude"`
-		GoogleMapsURL   *string   `json:"googleMapsUrl"`
-		Highlights      []string  `json:"highlights"`
-		IsSaved         bool      `json:"isSaved"`
-		IsSelling       bool      `json:"isSelling"`
-		StoreType       *string   `json:"storeType"`
-		CreatedAt       time.Time `json:"createdAt"`
-		UpdatedAt       time.Time `json:"updatedAt"`
+		ID              string     `json:"id"`
+		OwnerID         string     `json:"ownerId"`
+		Title           string     `json:"title"`
+		Description     *string    `json:"description"`
+		PickupTime      *string    `json:"pickUpTime"`
+		PickupTimestamp *time.Time `json:"pickupTimestamp"`
+		Distance        *string    `json:"distance"`
+		Price           *float64   `json:"price"`
+		OriginalPrice   *float64   `json:"originalPrice"`
+		DiscountedPrice *float64   `json:"discountedPrice"`
+		BackgroundURL   string     `json:"backgroundUrl"`
+		AvatarURL       *string    `json:"avatarUrl"`
+		ImageURL        string     `json:"imageUrl"`
+		Rating          *float64   `json:"rating"`
+		Reviews         *int64     `json:"reviews"`
+		ReviewsCount    *int64     `json:"reviewsCount"`
+		Address         string     `json:"address"`
+		City            *string    `json:"city"`
+		State           *string    `json:"state"`
+		ZipCode         *string    `json:"zipCode"`
+		Country         *string    `json:"country"`
+		Phone           *string    `json:"phone"`
+		ItemsLeft       *int64     `json:"itemsLeft"`
+		BagsAvailable   *int64     `json:"bagsAvailable"`
+		Latitude        float64    `json:"latitude"`
+		Longitude       float64    `json:"longitude"`
+		GoogleMapsURL   *string    `json:"googleMapsUrl"`
+		Highlights      []string   `json:"highlights"`
+		IsSaved         bool       `json:"isSaved"`
+		IsSelling       bool       `json:"isSelling"`
+		StoreType       *string    `json:"storeType"`
+		CreatedAt       time.Time  `json:"createdAt"`
+		UpdatedAt       time.Time  `json:"updatedAt"`
 	}{
 		ID:            s.ID,
 		OwnerID:       s.OwnerID,
@@ -110,6 +112,9 @@ func (s Store) MarshalJSON() ([]byte, error) {
 	}
 	if s.PickupTime.Valid {
 		result.PickupTime = &s.PickupTime.String
+	}
+	if s.PickupTimestamp.Valid {
+		result.PickupTimestamp = &s.PickupTimestamp.Time
 	}
 	if s.AvatarURL.Valid {
 		result.AvatarURL = &s.AvatarURL.String
