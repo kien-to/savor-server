@@ -246,6 +246,17 @@ func main() {
 		storeManagementGroup.POST("/pickup-schedule", handlers.UpdatePickupSchedule)
 	}
 
+	// Store Owner routes for managing reservations and settings
+	storeOwnerGroup := r.Group("/api/store-owner")
+	storeOwnerGroup.Use(middleware.AuthMiddleware(authClient))
+	{
+		storeOwnerGroup.GET("/reservations", handlers.GetStoreOwnerReservations)
+		storeOwnerGroup.PUT("/reservations/:id/status", handlers.UpdateReservationStatus)
+		storeOwnerGroup.GET("/settings", handlers.GetStoreOwnerSettings)
+		storeOwnerGroup.PUT("/settings", handlers.UpdateStoreOwnerSettings)
+		storeOwnerGroup.GET("/stats", handlers.GetStoreOwnerStats)
+	}
+
 	// Partner routes
 	partnerGroup := r.Group("/api/partner")
 	{

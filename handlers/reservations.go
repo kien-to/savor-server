@@ -88,9 +88,9 @@ func GetUserReservations(c *gin.Context) {
 		return
 	}
 
-	// Query reservations from database
-	var reservations []ReservationResponse
-	err = db.DB.Select(&reservations, `
+	// Query all reservations from database
+	var allReservations []ReservationResponse
+	err = db.DB.Select(&allReservations, `
 		SELECT 
 			r.id,
 			r.store_id,
@@ -111,8 +111,7 @@ func GetUserReservations(c *gin.Context) {
 		FROM reservations r
 		JOIN stores s ON r.store_id = s.id
 		WHERE r.user_id = $1 
-		AND (r.pickup_timestamp IS NULL OR r.pickup_timestamp > NOW() - INTERVAL '24 hours')
-		ORDER BY r.created_at DESC
+		ORDER BY r.pickup_timestamp DESC, r.created_at DESC
 	`, userID)
 
 	if err != nil {
@@ -121,8 +120,30 @@ func GetUserReservations(c *gin.Context) {
 		return
 	}
 
-	log.Printf("DEBUG: Found %d reservations for userID: %s", len(reservations), userID)
-	c.JSON(http.StatusOK, reservations)
+	// Separate current and past reservations based on 24-hour window
+	var currentReservations []ReservationResponse
+	var pastReservations []ReservationResponse
+	now := time.Now()
+	twentyFourHoursAgo := now.Add(-24 * time.Hour)
+
+	for _, reservation := range allReservations {
+		if reservation.CreatedAt.After(twentyFourHoursAgo) {
+			// Created within last 24 hours - current reservation
+			currentReservations = append(currentReservations, reservation)
+		} else {
+			// Created more than 24 hours ago - past reservation
+			pastReservations = append(pastReservations, reservation)
+		}
+	}
+
+	log.Printf("DEBUG: Found %d current and %d past reservations for userID: %s", len(currentReservations), len(pastReservations), userID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"currentReservations": currentReservations,
+		"pastReservations":    pastReservations,
+		"currentCount":        len(currentReservations),
+		"pastCount":           len(pastReservations),
+	})
 }
 
 func GetReservations(c *gin.Context) {
