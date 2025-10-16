@@ -37,6 +37,9 @@ type ReservationResponse struct {
 	CreatedAt       time.Time  `db:"created_at" json:"createdAt"`
 	OriginalPrice   float64    `db:"original_price" json:"originalPrice"`
 	DiscountedPrice float64    `db:"discounted_price" json:"discountedPrice"`
+	CustomerName    string     `db:"customer_name" json:"customerName,omitempty"`
+	CustomerEmail   string     `db:"customer_email" json:"customerEmail,omitempty"`
+	PhoneNumber     string     `db:"phone_number" json:"phoneNumber,omitempty"`
 }
 
 func GetUserReservations(c *gin.Context) {
@@ -107,9 +110,13 @@ func GetUserReservations(c *gin.Context) {
 			r.pickup_timestamp,
 			r.created_at,
 			s.original_price,
-			s.discounted_price
+			s.discounted_price,
+			COALESCE(r.customer_name, u.email, 'Guest User') as customer_name,
+			COALESCE(r.customer_email, u.email, '') as customer_email,
+			COALESCE(r.phone_number, '') as phone_number
 		FROM reservations r
 		JOIN stores s ON r.store_id = s.id
+		LEFT JOIN users u ON r.user_id = u.id::text
 		WHERE r.user_id = $1 
 		ORDER BY r.pickup_timestamp DESC, r.created_at DESC
 	`, userID)
@@ -275,6 +282,9 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 		PaymentID:       fmt.Sprintf("pay-%d", time.Now().Unix()),
 		PickupTime:      &req.PickupTime,
 		CreatedAt:       time.Now(),
+		CustomerName:    req.Name,
+		CustomerEmail:   req.Email,
+		PhoneNumber:     req.Phone,
 	}
 
 	// Check if reservations table exists
@@ -313,10 +323,12 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 	_, err = db.DB.Exec(`
 		INSERT INTO reservations (
 			id, user_id, store_id, quantity, total_amount, 
-			status, payment_id, pickup_time, pickup_timestamp, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			status, payment_id, pickup_time, pickup_timestamp, created_at,
+			customer_name, customer_email, phone_number
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`, reservation.ID, userID, req.StoreID, req.Quantity, req.TotalAmount,
-		reservation.Status, reservation.PaymentID, req.PickupTime, pickupTimestamp, reservation.CreatedAt)
+		reservation.Status, reservation.PaymentID, req.PickupTime, pickupTimestamp, reservation.CreatedAt,
+		req.Name, req.Email, req.Phone)
 
 	if err != nil {
 		log.Printf("ERROR: Failed to insert reservation into database: %v", err)

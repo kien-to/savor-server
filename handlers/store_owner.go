@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"savor-server/db"
 	"time"
@@ -13,12 +14,16 @@ type StoreOwnerReservation struct {
 	ID              string     `json:"id"`
 	CustomerName    string     `json:"customerName"`
 	CustomerEmail   string     `json:"customerEmail"`
+	PhoneNumber     string     `json:"phoneNumber"`
 	Quantity        int        `json:"quantity"`
 	TotalAmount     float64    `json:"totalAmount"`
 	Status          string     `json:"status"`
 	PickupTime      *string    `json:"pickupTime,omitempty"`
 	PickupTimestamp *time.Time `json:"pickupTimestamp,omitempty"`
 	CreatedAt       time.Time  `json:"createdAt"`
+	StoreName       string     `json:"storeName"`
+	StoreImage      string     `json:"storeImage"`
+	StoreAddress    string     `json:"storeAddress"`
 }
 
 type StoreOwnerSettings struct {
@@ -39,13 +44,18 @@ type UpdateStoreSettingsRequest struct {
 
 // GetStoreOwnerReservations gets all reservations for a store owner's store
 func GetStoreOwnerReservations(c *gin.Context) {
+	fmt.Printf("DEBUG: GetStoreOwnerReservations called\n")
 	userID := c.GetString("user_id")
+	fmt.Printf("DEBUG: Retrieved userID from context: '%s'\n", userID)
+
 	if userID == "" {
+		fmt.Printf("ERROR: User not authenticated - userID is empty\n")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
 	// First, get the store ID for this user
+	fmt.Printf("DEBUG: Looking for store with owner_id: %s\n", userID)
 	var storeID string
 	err := db.DB.QueryRow(`
 		SELECT id FROM stores WHERE owner_id = $1
@@ -53,32 +63,48 @@ func GetStoreOwnerReservations(c *gin.Context) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Store not found"})
+			fmt.Printf("WARN: No store found for userID: %s - returning empty reservations\n", userID)
+			c.JSON(http.StatusOK, gin.H{
+				"currentReservations": []StoreOwnerReservation{},
+				"pastReservations":    []StoreOwnerReservation{},
+				"currentCount":        0,
+				"pastCount":           0,
+			})
 			return
 		}
+		fmt.Printf("ERROR: Failed to query store for userID %s: %v\n", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get store"})
 		return
 	}
 
+	fmt.Printf("DEBUG: Found store with ID: %s for userID: %s\n", storeID, userID)
+
 	// Get all reservations for this store
+	fmt.Printf("DEBUG: Querying reservations for store_id: %s\n", storeID)
 	rows, err := db.DB.Query(`
 		SELECT 
 			r.id,
-			COALESCE(u.name, 'Guest User') as customer_name,
-			COALESCE(u.email, '') as customer_email,
+			COALESCE(r.customer_name, u.email, 'Guest User') as customer_name,
+			COALESCE(r.customer_email, u.email, '') as customer_email,
+			COALESCE(r.phone_number, '') as phone_number,
 			r.quantity,
 			r.total_amount,
 			r.status,
 			r.pickup_time,
 			r.pickup_timestamp,
-			r.created_at
+			r.created_at,
+			s.title as store_name,
+			s.image_url as store_image,
+			s.address as store_address
 		FROM reservations r
-		LEFT JOIN users u ON r.user_id = u.id
+		LEFT JOIN users u ON r.user_id = u.id::text
+		JOIN stores s ON r.store_id = s.id
 		WHERE r.store_id = $1 
 		ORDER BY r.pickup_timestamp DESC, r.created_at DESC
 	`, storeID)
 
 	if err != nil {
+		fmt.Printf("ERROR: Failed to query reservations for store_id %s: %v\n", storeID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get reservations"})
 		return
 	}
@@ -95,12 +121,16 @@ func GetStoreOwnerReservations(c *gin.Context) {
 			&res.ID,
 			&res.CustomerName,
 			&res.CustomerEmail,
+			&res.PhoneNumber,
 			&res.Quantity,
 			&res.TotalAmount,
 			&res.Status,
 			&res.PickupTime,
 			&res.PickupTimestamp,
 			&res.CreatedAt,
+			&res.StoreName,
+			&res.StoreImage,
+			&res.StoreAddress,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan reservation"})
@@ -189,16 +219,21 @@ func UpdateReservationStatus(c *gin.Context) {
 
 // GetStoreOwnerSettings gets the current store settings
 func GetStoreOwnerSettings(c *gin.Context) {
+	fmt.Printf("DEBUG: GetStoreOwnerSettings called")
 	userID := c.GetString("user_id")
+	fmt.Printf("DEBUG: Retrieved userID from context: '%s'", userID)
+
 	if userID == "" {
+		fmt.Printf("ERROR: User not authenticated - userID is empty")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
 	var settings StoreOwnerSettings
+	fmt.Printf("DEBUG: Querying store settings for userID: %s", userID)
 	err := db.DB.QueryRow(`
 		SELECT 
-			COALESCE(bag_count, 10) as surprise_boxes,
+			COALESCE(bags_available, 10) as surprise_boxes,
 			COALESCE(price, 5.0) as price,
 			COALESCE(is_selling, false) as is_selling
 		FROM stores 
@@ -207,12 +242,16 @@ func GetStoreOwnerSettings(c *gin.Context) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Store not found"})
+			fmt.Printf("WARN: No store found for userID: %s - returning default settings\n", userID)
+			settings = StoreOwnerSettings{SurpriseBoxes: 10, Price: 5.0, IsSelling: false}
+		} else {
+			fmt.Printf("ERROR: Failed to query store settings for userID %s: %v\n", userID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get store settings"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get store settings"})
-		return
 	}
+
+	fmt.Printf("DEBUG: Responding store settings for userID %s: %+v\n", userID, settings)
 
 	c.JSON(http.StatusOK, settings)
 }
@@ -245,7 +284,7 @@ func UpdateStoreOwnerSettings(c *gin.Context) {
 	_, err := db.DB.Exec(`
 		UPDATE stores 
 		SET 
-			bag_count = $1,
+			bags_available = $1,
 			price = $2,
 			is_selling = $3,
 			updated_at = NOW()
