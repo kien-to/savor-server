@@ -112,6 +112,20 @@ func ConfirmReservation(c *gin.Context) {
 		return
 	}
 
+	// Update bags_available count in stores table
+	_, err = db.DB.Exec(`
+		UPDATE stores 
+		SET bags_available = GREATEST(0, bags_available - $1), updated_at = NOW()
+		WHERE id = $2
+	`, parseInt(pi.Metadata["quantity"]), pi.Metadata["storeId"])
+
+	if err != nil {
+		fmt.Printf("WARNING: Failed to update bags_available for store %s: %v\n", pi.Metadata["storeId"], err)
+		// Don't fail the payment confirmation if bags_available update fails
+	} else {
+		fmt.Printf("Updated bags_available for store %s: decreased by %d\n", pi.Metadata["storeId"], parseInt(pi.Metadata["quantity"]))
+	}
+
 	// Create reservation record
 	reservation := struct {
 		StoreID     string  `json:"storeId"`
@@ -178,6 +192,20 @@ func ConfirmPayAtStore(c *gin.Context) {
 		fmt.Printf("Failed to create reservation: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reservation"})
 		return
+	}
+
+	// Update bags_available count in stores table
+	_, err = db.DB.Exec(`
+		UPDATE stores 
+		SET bags_available = GREATEST(0, bags_available - $1), updated_at = NOW()
+		WHERE id = $2
+	`, quantity, storeID)
+
+	if err != nil {
+		fmt.Printf("WARNING: Failed to update bags_available for store %s: %v\n", storeID, err)
+		// Don't fail the reservation creation if bags_available update fails
+	} else {
+		fmt.Printf("Updated bags_available for store %s: decreased by %d\n", storeID, quantity)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

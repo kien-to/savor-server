@@ -27,9 +27,25 @@ type StoreOwnerReservation struct {
 }
 
 type StoreOwnerSettings struct {
-	SurpriseBoxes int     `json:"surpriseBoxes"`
-	Price         float64 `json:"price"`
-	IsSelling     bool    `json:"isSelling"`
+	// Basic Info
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Address     string `json:"address"`
+
+	// Images
+	ImageUrl      string `json:"imageUrl"`
+	BackgroundUrl string `json:"backgroundUrl"`
+	AvatarUrl     string `json:"avatarUrl"`
+
+	// Pricing
+	OriginalPrice   float64 `json:"originalPrice"`
+	DiscountedPrice float64 `json:"discountedPrice"`
+	Price           float64 `json:"price"`
+
+	// Availability
+	SurpriseBoxes int    `json:"surpriseBoxes"`
+	PickupTime    string `json:"pickupTime"`
+	IsSelling     bool   `json:"isSelling"`
 }
 
 type UpdateReservationStatusRequest struct {
@@ -37,9 +53,25 @@ type UpdateReservationStatusRequest struct {
 }
 
 type UpdateStoreSettingsRequest struct {
-	SurpriseBoxes int     `json:"surpriseBoxes"`
-	Price         float64 `json:"price"`
-	IsSelling     bool    `json:"isSelling"`
+	// Basic Info
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Address     string `json:"address"`
+
+	// Images
+	ImageUrl      string `json:"imageUrl"`
+	BackgroundUrl string `json:"backgroundUrl"`
+	AvatarUrl     string `json:"avatarUrl"`
+
+	// Pricing
+	OriginalPrice   float64 `json:"originalPrice"`
+	DiscountedPrice float64 `json:"discountedPrice"`
+	Price           float64 `json:"price"`
+
+	// Availability
+	SurpriseBoxes int    `json:"surpriseBoxes"`
+	PickupTime    string `json:"pickupTime"`
+	IsSelling     bool   `json:"isSelling"`
 }
 
 // GetStoreOwnerReservations gets all reservations for a store owner's store
@@ -79,7 +111,7 @@ func GetStoreOwnerReservations(c *gin.Context) {
 
 	fmt.Printf("DEBUG: Found store with ID: %s for userID: %s\n", storeID, userID)
 
-	// Get all reservations for this store
+	// Get all reservations for this store (including guest reservations with NULL user_id)
 	fmt.Printf("DEBUG: Querying reservations for store_id: %s\n", storeID)
 	rows, err := db.DB.Query(`
 		SELECT 
@@ -99,7 +131,7 @@ func GetStoreOwnerReservations(c *gin.Context) {
 		FROM reservations r
 		LEFT JOIN users u ON r.user_id = u.id::text
 		JOIN stores s ON r.store_id = s.id
-		WHERE r.store_id = $1 
+		WHERE r.store_id = $1
 		ORDER BY r.pickup_timestamp DESC, r.created_at DESC
 	`, storeID)
 
@@ -176,8 +208,8 @@ func UpdateReservationStatus(c *gin.Context) {
 	}
 
 	// Validate status
-	if req.Status != "active" && req.Status != "picked_up" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status. Must be 'active' or 'picked_up'"})
+	if req.Status != "confirmed" && req.Status != "completed" && req.Status != "picked_up" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status. Must be 'confirmed', 'completed', or 'picked_up'"})
 		return
 	}
 
@@ -199,10 +231,22 @@ func UpdateReservationStatus(c *gin.Context) {
 		return
 	}
 
+	// Get reservation details before updating status
+	var quantity int
+	var currentStatus string
+	err = db.DB.QueryRow(`
+		SELECT quantity, status FROM reservations WHERE id = $1
+	`, reservationID).Scan(&quantity, &currentStatus)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get reservation details"})
+		return
+	}
+
 	// Update the reservation status
 	_, err = db.DB.Exec(`
 		UPDATE reservations 
-		SET status = $1, updated_at = NOW()
+		SET status = $1
 		WHERE id = $2
 	`, req.Status, reservationID)
 
@@ -210,6 +254,10 @@ func UpdateReservationStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update reservation status"})
 		return
 	}
+
+	// If changing from confirmed to completed, don't change items_left (bags are already counted as unavailable)
+	// If changing from completed to confirmed, also don't change items_left (bags were already counted)
+	// The items_left count represents bags available for NEW reservations, not bags that have been picked up
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Reservation status updated successfully",
@@ -233,17 +281,52 @@ func GetStoreOwnerSettings(c *gin.Context) {
 	fmt.Printf("DEBUG: Querying store settings for userID: %s", userID)
 	err := db.DB.QueryRow(`
 		SELECT 
-			COALESCE(bags_available, 10) as surprise_boxes,
-			COALESCE(price, 5.0) as price,
+			COALESCE(title, '') as title,
+			COALESCE(description, '') as description,
+			COALESCE(address, '') as address,
+			COALESCE(image_url, '') as image_url,
+			COALESCE(background_url, '') as background_url,
+			COALESCE(avatar_url, '') as avatar_url,
+			COALESCE(original_price, 0) as original_price,
+			COALESCE(discounted_price, 0) as discounted_price,
+			COALESCE(price, 0) as price,
+			COALESCE(items_left, 10) as surprise_boxes,
+			COALESCE(pickup_time, '') as pickup_time,
 			COALESCE(is_selling, false) as is_selling
 		FROM stores 
 		WHERE owner_id = $1
-	`, userID).Scan(&settings.SurpriseBoxes, &settings.Price, &settings.IsSelling)
+	`, userID).Scan(
+		&settings.Title,
+		&settings.Description,
+		&settings.Address,
+		&settings.ImageUrl,
+		&settings.BackgroundUrl,
+		&settings.AvatarUrl,
+		&settings.OriginalPrice,
+		&settings.DiscountedPrice,
+		&settings.Price,
+		&settings.SurpriseBoxes,
+		&settings.PickupTime,
+		&settings.IsSelling,
+	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fmt.Printf("WARN: No store found for userID: %s - returning default settings\n", userID)
-			settings = StoreOwnerSettings{SurpriseBoxes: 10, Price: 5.0, IsSelling: false}
+			settings = StoreOwnerSettings{
+				Title:           "My Store",
+				Description:     "",
+				Address:         "",
+				ImageUrl:        "",
+				BackgroundUrl:   "",
+				AvatarUrl:       "",
+				OriginalPrice:   0,
+				DiscountedPrice: 0,
+				Price:           0,
+				SurpriseBoxes:   10,
+				PickupTime:      "",
+				IsSelling:       false,
+			}
 		} else {
 			fmt.Printf("ERROR: Failed to query store settings for userID %s: %v\n", userID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get store settings"})
@@ -275,8 +358,12 @@ func UpdateStoreOwnerSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Surprise boxes count cannot be negative"})
 		return
 	}
-	if req.Price < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Price cannot be negative"})
+	if req.OriginalPrice < 0 || req.DiscountedPrice < 0 || req.Price < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Prices cannot be negative"})
+		return
+	}
+	if req.Title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Store title is required"})
 		return
 	}
 
@@ -284,25 +371,49 @@ func UpdateStoreOwnerSettings(c *gin.Context) {
 	_, err := db.DB.Exec(`
 		UPDATE stores 
 		SET 
-			bags_available = $1,
-			price = $2,
-			is_selling = $3,
+			title = $1,
+			description = $2,
+			address = $3,
+			image_url = $4,
+			background_url = $5,
+			avatar_url = $6,
+			original_price = $7,
+			discounted_price = $8,
+			price = $9,
+			items_left = $10,
+			pickup_time = $11,
+			is_selling = $12,
 			updated_at = NOW()
-		WHERE owner_id = $4
-	`, req.SurpriseBoxes, req.Price, req.IsSelling, userID)
+		WHERE owner_id = $13
+	`, req.Title, req.Description, req.Address,
+		req.ImageUrl, req.BackgroundUrl, req.AvatarUrl,
+		req.OriginalPrice, req.DiscountedPrice, req.Price,
+		req.SurpriseBoxes, req.PickupTime, req.IsSelling,
+		userID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update store settings"})
 		return
 	}
 
+	settings := StoreOwnerSettings{
+		Title:           req.Title,
+		Description:     req.Description,
+		Address:         req.Address,
+		ImageUrl:        req.ImageUrl,
+		BackgroundUrl:   req.BackgroundUrl,
+		AvatarUrl:       req.AvatarUrl,
+		OriginalPrice:   req.OriginalPrice,
+		DiscountedPrice: req.DiscountedPrice,
+		Price:           req.Price,
+		SurpriseBoxes:   req.SurpriseBoxes,
+		PickupTime:      req.PickupTime,
+		IsSelling:       req.IsSelling,
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Store settings updated successfully",
-		"settings": StoreOwnerSettings{
-			SurpriseBoxes: req.SurpriseBoxes,
-			Price:         req.Price,
-			IsSelling:     req.IsSelling,
-		},
+		"message":  "Store settings updated successfully",
+		"settings": settings,
 	})
 }
 

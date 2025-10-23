@@ -170,7 +170,7 @@ func GetHomePageData(c *gin.Context) {
 
 	// NEW QUERY: Simplified without saved_stores and store_highlights tables
 	err = db.DB.Select(&stores, `
-		SELECT 
+		SELECT DISTINCT ON (s.id)
 			s.id, 
 			s.title, 
 			COALESCE(s.description, '') as description,
@@ -178,7 +178,7 @@ func GetHomePageData(c *gin.Context) {
 			COALESCE(s.distance, '0 km') as distance,
 			COALESCE(s.price::numeric, 0.0) as price,
 			COALESCE(s.original_price::numeric, s.price::numeric, 0.0) as original_price,
-			COALESCE(s.price::numeric, 0.0) as discounted_price,
+			COALESCE(s.discounted_price::numeric, s.price::numeric, 0.0) as discounted_price,
 			COALESCE(s.background_url, '') as background_url,
 			COALESCE(s.image_url, '') as image_url,
 			COALESCE(s.rating, 0.0) as rating,
@@ -186,15 +186,17 @@ func GetHomePageData(c *gin.Context) {
 			COALESCE(s.reviews, 0) as reviews_count,
 			COALESCE(s.address, '') as address,
 			COALESCE(s.items_left, 0) as items_left,
-			COALESCE(s.items_left, 0) as bags_available,
+			COALESCE(s.bags_available, s.items_left, 0) as bags_available,
 			COALESCE(s.latitude, 0.0) as latitude,
 			COALESCE(s.longitude, 0.0) as longitude,
 			COALESCE(s.google_maps_url, '') as google_maps_url,
-			true as is_selling,
+			COALESCE(s.is_selling, true) as is_selling,
 			false as is_saved,  -- Set to false for now since we're not checking saved_stores
 			ARRAY[]::text[] as highlights  -- Empty array since we're not checking store_highlights
 		FROM stores s
-		LIMIT 50
+		WHERE s.is_selling = true
+		ORDER BY s.id, s.rating DESC, s.created_at DESC
+		LIMIT 20
 	`)
 
 	if err != nil {
