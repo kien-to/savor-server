@@ -129,8 +129,9 @@ func GetUserReservations(c *gin.Context) {
 	}
 
 	// Separate current and past reservations based on 24-hour window
-	var currentReservations []ReservationResponse
-	var pastReservations []ReservationResponse
+	// Initialize as empty slices instead of nil to ensure JSON serialization as [] not null
+	currentReservations := make([]ReservationResponse, 0)
+	pastReservations := make([]ReservationResponse, 0)
 	now := time.Now()
 	twentyFourHoursAgo := now.Add(-24 * time.Hour)
 
@@ -701,19 +702,19 @@ func GetGuestReservations(c *gin.Context) {
 		fmt.Printf("[DEBUG] Reservation %d - ID: %s, StoreAddress: '%s'\n", i, res.ID, res.StoreAddress)
 	}
 
-	// Filter out expired reservations (more than 24 hours past pickup time)
+	// Filter based on creation time (keep reservations created within last 24 hours)
+	// This is more reliable than using pickup timestamp which might be outdated test data
 	currentTime := time.Now()
+	twentyFourHoursAgo := currentTime.Add(-24 * time.Hour)
 	activeReservations := make([]ReservationResponse, 0)
-	for _, res := range reservations {
-		if res.PickupTimestamp == nil {
-			// Keep reservations without pickup timestamp
-			activeReservations = append(activeReservations, res)
-			continue
-		}
 
-		// Keep reservation if pickup time is within 24 hours
-		if res.PickupTimestamp.After(currentTime.Add(-24 * time.Hour)) {
+	for _, res := range reservations {
+		// Keep reservation if it was created within the last 24 hours
+		if res.CreatedAt.After(twentyFourHoursAgo) {
 			activeReservations = append(activeReservations, res)
+			fmt.Printf("[DEBUG] Keeping reservation %s - created at %s\n", res.ID, res.CreatedAt)
+		} else {
+			fmt.Printf("[DEBUG] Filtering out reservation %s - created at %s (too old)\n", res.ID, res.CreatedAt)
 		}
 	}
 

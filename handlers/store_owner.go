@@ -142,8 +142,9 @@ func GetStoreOwnerReservations(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var currentReservations []StoreOwnerReservation
-	var pastReservations []StoreOwnerReservation
+	// Initialize as empty slices instead of nil to ensure JSON serialization as [] not null
+	currentReservations := make([]StoreOwnerReservation, 0)
+	pastReservations := make([]StoreOwnerReservation, 0)
 	now := time.Now()
 	twentyFourHoursAgo := now.Add(-24 * time.Hour)
 
