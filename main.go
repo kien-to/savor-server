@@ -14,7 +14,6 @@ import (
 	"savor-server/db"
 
 	// "savor-server/db"
-	_ "savor-server/docs" // This will be auto-generated
 	"savor-server/handlers"
 	"savor-server/middleware"
 	"savor-server/services"
