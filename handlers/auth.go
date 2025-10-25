@@ -107,8 +107,6 @@ func SignUp(app *firebase.App) gin.HandlerFunc {
 
 		user, err := client.CreateUser(context.Background(), params)
 		if err != nil {
-			fmt.Printf("SignUp: Firebase CreateUser failed: %v", err)
-			fmt.Printf("SignUp: Error type: %T", err)
 
 			// Provide more specific error messages
 			errorMsg := err.Error()
@@ -127,7 +125,6 @@ func SignUp(app *firebase.App) gin.HandlerFunc {
 		// Generate custom token
 		token, err := client.CustomToken(context.Background(), user.UID)
 		if err != nil {
-			fmt.Printf("SignUp: Failed to generate custom token for user %s: %v", user.UID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 			return
 		}

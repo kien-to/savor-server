@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -234,14 +233,6 @@ func GetHomePageData(c *gin.Context) {
 		sort.Slice(storesWithDistances, func(i, j int) bool {
 			return storesWithDistances[i].distanceMeters < storesWithDistances[j].distanceMeters
 		})
-
-		// Log the sorted distances for debugging
-		log.Printf("[BACKEND] Distance sorting results:")
-		for i, swd := range storesWithDistances {
-			if i < 15 { // Log first 15 for debugging
-				log.Printf("[BACKEND] %d. %s: %s (%d meters)", i+1, swd.store.Title, swd.distanceStr, swd.distanceMeters)
-			}
-		}
 
 		// Extract sorted stores (limit to top 20 closest)
 		maxStores := len(storesWithDistances)
@@ -543,9 +534,6 @@ func convertToStores(modelStores []models.Store) []Store {
 		if s.GoogleMapsURL.Valid {
 			googleMapsURL = s.GoogleMapsURL.String
 		}
-
-		// Debug: Log the address being converted
-		fmt.Printf("[DEBUG convertToStores] Store %s: Address='%s'\n", s.ID, s.Address)
 
 		stores[i] = Store{
 			ID:              s.ID,
