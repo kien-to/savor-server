@@ -124,8 +124,6 @@ func SignUp(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		fmt.Printf("SignUp: User created successfully with UID: %s", user.UID)
-
 		// Generate custom token
 		token, err := client.CustomToken(context.Background(), user.UID)
 		if err != nil {
@@ -134,7 +132,6 @@ func SignUp(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		fmt.Printf("SignUp: Custom token generated successfully for user %s", user.UID)
 		c.JSON(http.StatusOK, gin.H{"user_id": user.UID, "token": token})
 	}
 }
@@ -278,6 +275,7 @@ func PhoneAuth(app *firebase.App) gin.HandlerFunc {
 // @Router      /api/profile [get]
 func GetProfile(c *gin.Context) {
 	userId := c.GetString("user_id")
+	log.Printf("GetProfile: Fetching profile for user_id: %s", userId)
 
 	// Ensure table exists
 	if _, err := db.DB.Exec(`
@@ -301,6 +299,7 @@ func GetProfile(c *gin.Context) {
     `, userId).Scan(&name, &phone, &email)
 
 	if err != nil {
+		log.Printf("GetProfile: No profile found for user_id %s (error: %v), returning empty profile", userId, err)
 		// Return minimal profile if not found
 		c.JSON(http.StatusOK, gin.H{
 			"user_id": userId,
@@ -310,6 +309,8 @@ func GetProfile(c *gin.Context) {
 		})
 		return
 	}
+
+	log.Printf("GetProfile: Found profile for user_id %s - name: '%s', phone: '%s', email: '%s'", userId, name, phone, email)
 
 	c.JSON(http.StatusOK, gin.H{
 		"user_id": userId,
@@ -330,15 +331,21 @@ type UpdateProfileInput struct {
 func UpdateProfile(c *gin.Context) {
 	userId := c.GetString("user_id")
 	if userId == "" {
+		log.Printf("UpdateProfile: Unauthorized - no user_id in context")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	log.Printf("UpdateProfile: Starting update for user_id: %s", userId)
+
 	var input UpdateProfileInput
 	if err := c.ShouldBindJSON(&input); err != nil {
+		log.Printf("UpdateProfile: Invalid input JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
+
+	log.Printf("UpdateProfile: Received input - Name: '%s', Phone: '%s', Email: '%s'", input.Name, input.Phone, input.Email)
 
 	// Ensure table exists
 	if _, err := db.DB.Exec(`
@@ -359,6 +366,8 @@ func UpdateProfile(c *gin.Context) {
 	phone := strings.TrimSpace(input.Phone)
 	email := strings.TrimSpace(input.Email)
 
+	log.Printf("UpdateProfile: Upserting to database - user_id: %s, name: '%s', phone: '%s', email: '%s'", userId, name, phone, email)
+
 	// Upsert profile
 	if _, err := db.DB.Exec(`
         INSERT INTO user_profiles (user_id, name, phone, email)
@@ -369,10 +378,12 @@ func UpdateProfile(c *gin.Context) {
             email = EXCLUDED.email,
             updated_at = NOW()
     `, userId, name, phone, email); err != nil {
-		log.Printf("ERROR: Upserting user profile failed: %v", err)
+		log.Printf("ERROR: Upserting user profile failed for user_id %s: %v", userId, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save profile"})
 		return
 	}
+
+	log.Printf("UpdateProfile: Successfully saved profile for user_id: %s", userId)
 
 	c.JSON(http.StatusOK, gin.H{
 		"user_id": userId,

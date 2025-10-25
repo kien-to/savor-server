@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"savor-server/db"
 	"savor-server/services"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -44,28 +45,12 @@ type ReservationResponse struct {
 }
 
 func GetUserReservations(c *gin.Context) {
-	// Debug: Log all headers and context values
-	log.Printf("DEBUG: GetUserReservations called")
-	log.Printf("DEBUG: Authorization header: %s", c.GetHeader("Authorization"))
-	log.Printf("DEBUG: Content-Type header: %s", c.GetHeader("Content-Type"))
-	log.Printf("DEBUG: Request method: %s", c.Request.Method)
-	log.Printf("DEBUG: Request URL: %s", c.Request.URL.String())
-
-	// Check all context keys
-	for key, value := range c.Keys {
-		log.Printf("DEBUG: Context key '%s' = %v", key, value)
-	}
-
 	userID := c.GetString("user_id")
-	log.Printf("DEBUG: Retrieved userID from context: '%s'", userID)
 
 	if userID == "" {
-		log.Printf("ERROR: User not authenticated - userID is empty")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
-
-	log.Printf("DEBUG: GetUserReservations called for userID: %s", userID)
 
 	// Check if reservations table exists
 	var tableExists bool
@@ -78,15 +63,12 @@ func GetUserReservations(c *gin.Context) {
 	`)
 
 	if err != nil {
-		log.Printf("ERROR: Failed to check if reservations table exists: %v", err)
+		log.Printf("Failed to check if reservations table exists: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
 
-	log.Printf("DEBUG: Reservations table exists: %v", tableExists)
-
 	if !tableExists {
-		log.Printf("WARNING: Reservations table does not exist, returning empty array")
 		// Return empty array since table doesn't exist yet
 		c.JSON(http.StatusOK, []ReservationResponse{})
 		return
@@ -301,7 +283,6 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: Failed to check if reservations table exists: %v", err)
-		fmt.Printf("ERROR: Failed to check if reservations table exists: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
@@ -317,7 +298,6 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 	err = db.DB.Get(&pickupTimestamp, `SELECT pickup_timestamp FROM stores WHERE id = $1`, req.StoreID)
 	if err != nil {
 		log.Printf("WARNING: Failed to get store pickup timestamp for store %s: %v", req.StoreID, err)
-		// Fallback: current time + 2 hours
 		pickupTimestamp = time.Now().Add(2 * time.Hour)
 	}
 
@@ -348,13 +328,38 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 	`, req.Quantity, req.StoreID)
 
 	if err != nil {
-		log.Printf("WARNING: Failed to update items_left and bags_available for store %s: %v", req.StoreID, err)
-		// Don't fail the reservation creation if items_left update fails
+		log.Printf("ERROR: Failed to update items_left and bags_available for store %s: %v", req.StoreID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update items_left and bags_available"})
 	} else {
 		log.Printf("Updated items_left and bags_available for store %s: decreased by %d", req.StoreID, req.Quantity)
 	}
 
-	log.Printf("Reservation created successfully in database for user %s", userID)
+	// Send email confirmation (don't fail if email fails)
+	go func() {
+		if req.Email != "" {
+			emailService := services.GetEmailService()
+			if emailService != nil && emailService.IsConfigured() {
+				emailData := services.ReservationEmailData{
+					CustomerName:    req.Name,
+					StoreName:       req.StoreName,
+					StoreAddress:    req.StoreAddress,
+					StoreImage:      req.StoreImage,
+					Quantity:        req.Quantity,
+					TotalAmount:     req.TotalAmount,
+					PickupTime:      req.PickupTime,
+					ReservationID:   reservation.ID,
+					Status:          getStatusTextVietnamese(reservation.Status),
+					PaymentType:     "Trả tiền tại cửa hàng",
+					CreatedAt:       reservation.CreatedAt,
+					OriginalPrice:   req.OriginalPrice,
+					DiscountedPrice: req.DiscountedPrice,
+				}
+				if err := emailService.SendReservationConfirmation(req.Email, emailData); err != nil {
+					log.Printf("Failed to send email confirmation: %v", err)
+				}
+			}
+		}
+	}()
 
 	// Send notification (don't fail if notification fails)
 	go func() {
@@ -385,20 +390,17 @@ func CreateAuthenticatedReservation(c *gin.Context) {
 func CreateGuestReservation(c *gin.Context) {
 	var req GuestReservationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		fmt.Printf("Failed to bind JSON: %v\n", err)
+		log.Printf("ERROR: Failed to bind JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
 
 	// Validate required fields
 	if req.StoreID == "" || req.Quantity < 1 || (req.Email == "" && req.Phone == "") {
-		fmt.Printf("Invalid request data: %v\n", req)
+		log.Printf("ERROR: Invalid request data: %v", req)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing required fields"})
 		return
 	}
-
-	fmt.Printf("Creating guest reservation: %v\n", req)
-	log.Printf("Creating guest reservation for store %s: %v", req.StoreID, req)
 
 	// Get store pickup timestamp directly from database
 	var pickupTimestamp time.Time
@@ -468,6 +470,36 @@ func CreateGuestReservation(c *gin.Context) {
 
 	log.Printf("Guest reservation created successfully in database: %s", reservationID)
 
+	// Send email confirmation (don't fail if email fails)
+	go func() {
+		if req.Email != "" {
+			emailService := services.GetEmailService()
+			if emailService != nil && emailService.IsConfigured() {
+				emailData := services.ReservationEmailData{
+					CustomerName:    req.Name,
+					StoreName:       req.StoreName,
+					StoreAddress:    req.StoreAddress,
+					StoreImage:      req.StoreImage,
+					Quantity:        req.Quantity,
+					TotalAmount:     req.TotalAmount,
+					PickupTime:      req.PickupTime,
+					ReservationID:   reservationID,
+					Status:          getStatusTextVietnamese(reservation.Status),
+					PaymentType:     "Trả tiền tại cửa hàng",
+					CreatedAt:       reservation.CreatedAt,
+					OriginalPrice:   req.OriginalPrice,
+					DiscountedPrice: req.DiscountedPrice,
+				}
+
+				if err := emailService.SendReservationConfirmation(req.Email, emailData); err != nil {
+					log.Printf("Failed to send email confirmation: %v", err)
+				} else {
+					log.Printf("Email confirmation sent successfully to %s for reservation %s", req.Email, reservationID)
+				}
+			}
+		}
+	}()
+
 	// Also store in session for backward compatibility
 	session := sessions.Default(c)
 	var sessionReservations []ReservationResponse
@@ -478,6 +510,7 @@ func CreateGuestReservation(c *gin.Context) {
 	session.Set("reservations", sessionReservations)
 	if err := session.Save(); err != nil {
 		log.Printf("WARNING: Failed to save guest reservation to session: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save guest reservation to session"})
 		// Don't fail since it's already in the database
 	}
 
@@ -697,11 +730,6 @@ func GetGuestReservations(c *gin.Context) {
 		return
 	}
 
-	// Debug each reservation's address
-	for i, res := range reservations {
-		fmt.Printf("[DEBUG] Reservation %d - ID: %s, StoreAddress: '%s'\n", i, res.ID, res.StoreAddress)
-	}
-
 	// Filter based on creation time (keep reservations created within last 24 hours)
 	// This is more reliable than using pickup timestamp which might be outdated test data
 	currentTime := time.Now()
@@ -712,9 +740,7 @@ func GetGuestReservations(c *gin.Context) {
 		// Keep reservation if it was created within the last 24 hours
 		if res.CreatedAt.After(twentyFourHoursAgo) {
 			activeReservations = append(activeReservations, res)
-			fmt.Printf("[DEBUG] Keeping reservation %s - created at %s\n", res.ID, res.CreatedAt)
 		} else {
-			fmt.Printf("[DEBUG] Filtering out reservation %s - created at %s (too old)\n", res.ID, res.CreatedAt)
 		}
 	}
 
@@ -739,4 +765,21 @@ func ClearSessionReservations(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Session reservations cleared"})
+}
+
+// getStatusTextVietnamese converts reservation status to Vietnamese
+func getStatusTextVietnamese(status string) string {
+	statusMap := map[string]string{
+		"confirmed": "Đã xác nhận",
+		"pending":   "Đang chờ",
+		"picked_up": "Đã lấy hàng",
+		"completed": "Đã hoàn thành",
+		"cancelled": "Đã hủy",
+		"expired":   "Hết hạn",
+	}
+
+	if vietnameseStatus, ok := statusMap[strings.ToLower(status)]; ok {
+		return vietnameseStatus
+	}
+	return status
 }

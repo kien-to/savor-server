@@ -76,9 +76,7 @@ type UpdateStoreSettingsRequest struct {
 
 // GetStoreOwnerReservations gets all reservations for a store owner's store
 func GetStoreOwnerReservations(c *gin.Context) {
-	fmt.Printf("DEBUG: GetStoreOwnerReservations called\n")
 	userID := c.GetString("user_id")
-	fmt.Printf("DEBUG: Retrieved userID from context: '%s'\n", userID)
 
 	if userID == "" {
 		fmt.Printf("ERROR: User not authenticated - userID is empty\n")
@@ -87,7 +85,6 @@ func GetStoreOwnerReservations(c *gin.Context) {
 	}
 
 	// First, get the store ID for this user
-	fmt.Printf("DEBUG: Looking for store with owner_id: %s\n", userID)
 	var storeID string
 	err := db.DB.QueryRow(`
 		SELECT id FROM stores WHERE owner_id = $1
@@ -109,10 +106,7 @@ func GetStoreOwnerReservations(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("DEBUG: Found store with ID: %s for userID: %s\n", storeID, userID)
-
 	// Get all reservations for this store (including guest reservations with NULL user_id)
-	fmt.Printf("DEBUG: Querying reservations for store_id: %s\n", storeID)
 	rows, err := db.DB.Query(`
 		SELECT 
 			r.id,
@@ -268,9 +262,7 @@ func UpdateReservationStatus(c *gin.Context) {
 
 // GetStoreOwnerSettings gets the current store settings
 func GetStoreOwnerSettings(c *gin.Context) {
-	fmt.Printf("DEBUG: GetStoreOwnerSettings called")
 	userID := c.GetString("user_id")
-	fmt.Printf("DEBUG: Retrieved userID from context: '%s'", userID)
 
 	if userID == "" {
 		fmt.Printf("ERROR: User not authenticated - userID is empty")
@@ -279,7 +271,6 @@ func GetStoreOwnerSettings(c *gin.Context) {
 	}
 
 	var settings StoreOwnerSettings
-	fmt.Printf("DEBUG: Querying store settings for userID: %s", userID)
 	err := db.DB.QueryRow(`
 		SELECT 
 			COALESCE(title, '') as title,
@@ -334,8 +325,6 @@ func GetStoreOwnerSettings(c *gin.Context) {
 			return
 		}
 	}
-
-	fmt.Printf("DEBUG: Responding store settings for userID %s: %+v\n", userID, settings)
 
 	c.JSON(http.StatusOK, settings)
 }

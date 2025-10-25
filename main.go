@@ -98,6 +98,9 @@ func main() {
 	// Initialize Google Maps
 	services.InitializeGoogleMaps()
 
+	// Initialize Email Service
+	services.InitializeEmailService()
+
 	// Initialize Notification Service
 	services.InitializeNotificationService()
 	log.Printf("Notification service initialized")

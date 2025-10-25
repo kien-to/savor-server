@@ -32,7 +32,7 @@ type Store struct {
 	Longitude       float64  `json:"longitude"`
 	GoogleMapsURL   string   `json:"googleMapsUrl"`
 	ReviewsCount    int64    `json:"reviewsCount"`
-	BagsAvailable   int64    `json:"bagsAvailable"`
+	ItemsLeft       int64    `json:"itemsLeft"`
 	Highlights      []string `json:"highlights"`
 }
 
@@ -58,7 +58,6 @@ type HomePageResponse struct {
 // @Failure     401 {object} map[string]string "Unauthorized"
 // @Router      /api/home [get]
 func GetHomePageData(c *gin.Context) {
-	fmt.Println("[BACKEND] GetHomePageData called")
 	if db.DB == nil {
 		log.Printf("[BACKEND] ERROR: Database connection not initialized")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection not initialized"})
@@ -67,44 +66,25 @@ func GetHomePageData(c *gin.Context) {
 
 	lat := c.Query("latitude")
 	lng := c.Query("longitude")
-	log.Printf("[BACKEND] Received params - lat: %s, lng: %s", lat, lng)
 
 	if lat == "" || lng == "" {
-		log.Printf("[BACKEND] ERROR: Missing location parameters")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Location parameters required"})
 		return
 	}
 
 	userLat, err := strconv.ParseFloat(lat, 64)
 	if err != nil {
-		log.Printf("[BACKEND] ERROR: Invalid latitude '%s': %v", lat, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid latitude"})
 		return
 	}
 
 	userLng, err := strconv.ParseFloat(lng, 64)
 	if err != nil {
-		log.Printf("[BACKEND] ERROR: Invalid longitude '%s': %v", lng, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid longitude"})
 		return
 	}
 
-	log.Printf("[BACKEND] Parsed coordinates: lat=%f, lng=%f", userLat, userLng)
-
 	var stores []models.Store
-
-	// Debug: Log the user_id and its type
-	userID := c.GetString("user_id")
-	log.Printf("[BACKEND] DEBUG: user_id = '%s', type = %T", userID, userID)
-
-	// Debug: Check total count of stores in database
-	var totalCount int
-	countErr := db.DB.Get(&totalCount, "SELECT COUNT(*) FROM stores")
-	if countErr == nil {
-		log.Printf("[BACKEND] 🔢 Total stores in database: %d", totalCount)
-	} else {
-		log.Printf("[BACKEND] ERROR: Could not count stores: %v", countErr)
-	}
 
 	// COMMENTED OUT: Original query with saved_stores table (causing type mismatch)
 	/*
@@ -200,33 +180,13 @@ func GetHomePageData(c *gin.Context) {
 	`)
 
 	if err != nil {
-		fmt.Println(err)
-		log.Printf("[BACKEND] ERROR: Database query failed: %v", err)
-		log.Printf("[BACKEND] DEBUG: Query was executed with user_id = '%s'", userID)
-
-		// Check if this is a type mismatch error
-		if strings.Contains(err.Error(), "operator does not exist: integer = text") {
-			log.Printf("[BACKEND] DEBUG: This is a type mismatch error - likely comparing integer with text in saved_stores table")
-		}
-
+		log.Printf("Database query failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stores"})
 		return
 	}
 
-	log.Printf("[BACKEND] ✅ Query successful, found %d stores from database", len(stores))
-
-	// Log details about each store for debugging
-	for i, store := range stores {
-		log.Printf("[BACKEND] Store %d: ID=%s, Title=%s, Price=%.2f, Rating=%.1f, ItemsLeft=%d, Address='%s'",
-			i+1, store.ID, store.Title, store.Price.Float64, store.Rating.Float64, store.ItemsLeft.Int64, store.Address)
-	}
-
-	// Additional debug: Log the exact SQL query being executed
-	log.Printf("[BACKEND] 🔍 DEBUG: Database contains only %d stores. Expected ~15 stores from CSV import.", len(stores))
-
 	// Calculate distances using Google Maps API and sort by distance
 	if services.GoogleMaps != nil {
-		log.Printf("[BACKEND] Google Maps service available, calculating distances")
 
 		// Create a slice to hold stores with their calculated distance in meters
 		type storeWithDistance struct {
@@ -293,9 +253,7 @@ func GetHomePageData(c *gin.Context) {
 			stores[i] = storesWithDistances[i].store
 		}
 
-		log.Printf("[BACKEND] Stores sorted by distance - returning %d closest stores", maxStores)
 	} else {
-		log.Printf("[BACKEND] WARNING: Google Maps service not available")
 	}
 
 	// Split stores into recommended and pickup tomorrow based on pickup time
@@ -307,8 +265,6 @@ func GetHomePageData(c *gin.Context) {
 			recommended = append(recommended, store)
 		}
 	}
-
-	log.Printf("[BACKEND] 📊 Data split - Recommended: %d stores, Tomorrow: %d stores", len(recommended), len(tomorrow))
 
 	response := HomePageResponse{
 		UserLocation: struct {
@@ -323,8 +279,6 @@ func GetHomePageData(c *gin.Context) {
 		EmailVerified:     true,
 	}
 
-	log.Printf("[BACKEND] 🚀 Response ready with %d recommended, %d tomorrow stores", len(response.RecommendedStores), len(response.PickUpTomorrow))
-	log.Printf("[BACKEND] 📤 Sending final response to client")
 	c.JSON(http.StatusOK, response)
 }
 
@@ -339,10 +293,8 @@ func GetHomePageData(c *gin.Context) {
 // @Router      /api/home/search [get]
 func SearchStores(c *gin.Context) {
 	query := c.Query("query")
-	log.Printf("[BACKEND] 🔍 SearchStores called with query: '%s'", query)
 
 	if query == "" {
-		log.Printf("[BACKEND] ERROR: Empty search query")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Search query required"})
 		return
 	}
@@ -474,14 +426,6 @@ func SearchStores(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[BACKEND] ✅ Search successful, found %d stores matching '%s'", len(modelStores), query)
-
-	// Log search results for debugging
-	for i, store := range modelStores {
-		log.Printf("[BACKEND] Search Result %d: ID=%s, Title=%s, Matches query '%s'",
-			i+1, store.ID, store.Title, query)
-	}
-
 	// Calculate distances using Google Maps API if user location is provided and sort by distance
 	if services.GoogleMaps != nil && userLat != 0 && userLng != 0 {
 		// Create a slice to hold stores with their calculated distance in meters
@@ -540,12 +484,10 @@ func SearchStores(c *gin.Context) {
 			modelStores[i] = storesWithDistances[i].store
 		}
 
-		log.Printf("[BACKEND] Search results sorted by distance - returning %d closest stores", maxStores)
 	}
 
 	// Convert model stores to response stores
 	stores := convertToStores(modelStores)
-	log.Printf("[BACKEND] 📤 Search response ready with %d stores for query '%s'", len(stores), query)
 	c.JSON(http.StatusOK, stores)
 }
 
@@ -592,9 +534,9 @@ func convertToStores(modelStores []models.Store) []Store {
 			reviewsCount = s.ReviewsCount.Int64
 		}
 
-		bagsAvailable := int64(0)
-		if s.BagsAvailable.Valid {
-			bagsAvailable = s.BagsAvailable.Int64
+		itemsLeft := int64(0)
+		if s.ItemsLeft.Valid {
+			itemsLeft = s.ItemsLeft.Int64
 		}
 
 		googleMapsURL := ""
@@ -617,7 +559,7 @@ func convertToStores(modelStores []models.Store) []Store {
 			ImageURL:        s.ImageURL,
 			Rating:          rating,
 			ReviewsCount:    reviewsCount,
-			BagsAvailable:   bagsAvailable,
+			ItemsLeft:       itemsLeft,
 			Address:         s.Address, // THIS WAS MISSING!
 			IsSaved:         s.IsSaved,
 			Latitude:        s.Latitude,

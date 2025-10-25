@@ -20,10 +20,8 @@ type CustomClaims struct {
 
 func AuthMiddleware(client *auth.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		fmt.Printf("DEBUG: AuthMiddleware called for %s %s\n", c.Request.Method, c.Request.URL.Path)
 
 		authHeader := c.GetHeader("Authorization")
-		fmt.Printf("DEBUG: Authorization header: %s\n", authHeader)
 
 		if authHeader == "" {
 			fmt.Println("ERROR: Authorization header is empty")
@@ -32,22 +30,15 @@ func AuthMiddleware(client *auth.Client) gin.HandlerFunc {
 		}
 
 		idToken := strings.Replace(authHeader, "Bearer ", "", 1)
-		fmt.Printf("DEBUG: Extracted ID token (first 20 chars): %s...\n", idToken[:min(20, len(idToken))])
 
 		// Try Firebase token verification first
 		firebaseToken, err := client.VerifyIDToken(context.Background(), idToken)
 		if err == nil {
 			// Firebase token verification successful
-			fmt.Printf("DEBUG: Firebase token verification successful - UID: %s\n", firebaseToken.UID)
-			fmt.Printf("DEBUG: Firebase token claims: %+v\n", firebaseToken.Claims)
 			c.Set("user_id", firebaseToken.UID)
-			fmt.Printf("DEBUG: Set user_id in context: %s\n", firebaseToken.UID)
 			c.Next()
 			return
 		}
-
-		fmt.Printf("DEBUG: Firebase token verification failed: %v\n", err)
-		fmt.Printf("DEBUG: Token appears to be a Firebase custom token, extracting user ID from token...\n")
 
 		// For Firebase custom tokens, we need to decode them to get the user ID
 		// Firebase custom tokens are JWT tokens with a specific structure
@@ -89,9 +80,7 @@ func AuthMiddleware(client *auth.Client) gin.HandlerFunc {
 			return
 		}
 
-		fmt.Printf("DEBUG: Extracted user ID from custom token: %s\n", userID)
 		c.Set("user_id", userID)
-		fmt.Printf("DEBUG: Set user_id in context: %s\n", userID)
 		c.Next()
 		return
 	}

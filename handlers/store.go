@@ -15,40 +15,20 @@ import (
 func GetStoreDetail(c *gin.Context) {
 	storeID := c.Param("id")
 
-	// Debug: Log the incoming request
-	log.Printf("DEBUG: GetStoreDetail called with storeID: '%s'", storeID)
-	log.Printf("DEBUG: Request URL: %s", c.Request.URL.String())
-	log.Printf("DEBUG: Request Method: %s", c.Request.Method)
-
-	// Debug: Check if storeID is empty or invalid
 	if storeID == "" {
-		log.Printf("ERROR: storeID is empty")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Store ID is required"})
 		return
 	}
 
-	// Debug: First check if store exists with a simple query
 	var storeExists bool
 	existsErr := db.DB.Get(&storeExists, `SELECT EXISTS(SELECT 1 FROM stores WHERE id = $1)`, storeID)
 	if existsErr != nil {
-		log.Printf("ERROR: Failed to check if store exists: %v", existsErr)
+		log.Printf("Failed to check if store exists: %v", existsErr)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error checking store existence"})
 		return
 	}
 
-	log.Printf("DEBUG: Store exists check - storeID: '%s', exists: %v", storeID, storeExists)
-
 	if !storeExists {
-		// Debug: List all existing store IDs to help with debugging
-		var allStoreIDs []string
-		listErr := db.DB.Select(&allStoreIDs, `SELECT id FROM stores LIMIT 10`)
-		if listErr != nil {
-			log.Printf("ERROR: Failed to list existing stores: %v", listErr)
-		} else {
-			log.Printf("DEBUG: Available store IDs in database: %v", allStoreIDs)
-		}
-
-		log.Printf("ERROR: Store with ID '%s' does not exist in database", storeID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Store not found"})
 		return
 	}
@@ -57,28 +37,16 @@ func GetStoreDetail(c *gin.Context) {
 	query := `
 	SELECT * FROM stores WHERE id = $1
 	`
-	// SELECT s.*,
-	//            array_agg(DISTINCT sh.highlight) FILTER (WHERE sh.highlight IS NOT NULL) as highlights
-	//     FROM stores s
-	//     LEFT JOIN store_highlights sh ON s.id = sh.store_id
-	//     WHERE s.id = $1
-	//     GROUP BY s.id
-
-	log.Printf("DEBUG: Executing main query with storeID: '%s'", storeID)
 	err := db.DB.Get(&modelStore, query, storeID)
 
 	if err != nil {
-		log.Printf("ERROR: Failed to fetch store details - storeID: '%s', error: %v", storeID, err)
-		fmt.Printf("ERROR: Database query failed: %v\n", err)
+		log.Printf("Failed to fetch store details: %v", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Store not found"})
 		return
 	}
 
-	log.Printf("DEBUG: Successfully fetched store - ID: '%s', Title: '%s'", modelStore.ID, modelStore.Title)
-
 	// Check if store is saved by user
-	userID := c.GetString("user_id") // From auth middleware
-	log.Printf("DEBUG: Checking if store is saved by user - userID: '%s', storeID: '%s'", userID, storeID)
+	userID := c.GetString("user_id")
 
 	var saved bool
 	err = db.DB.Get(&saved, `
@@ -89,11 +57,8 @@ func GetStoreDetail(c *gin.Context) {
 	`, userID, storeID)
 
 	if err != nil {
-		log.Printf("WARNING: Failed to check if store is saved by user: %v", err)
 		// Don't fail the request, just assume not saved
 		saved = false
-	} else {
-		log.Printf("DEBUG: Store saved status - userID: '%s', storeID: '%s', saved: %v", userID, storeID, saved)
 	}
 
 	// Convert to response format
@@ -157,64 +122,70 @@ func GetStoreDetail(c *gin.Context) {
 		originalPrice = modelStore.OriginalPrice.Float64
 	}
 
+	discountedPrice := 0.0
+	if modelStore.DiscountedPrice.Valid {
+		discountedPrice = modelStore.DiscountedPrice.Float64
+	}
+
 	price := 0.0
 	if modelStore.Price.Valid {
 		price = modelStore.Price.Float64
 	}
 
 	responseStore := struct {
-		ID            string         `json:"id"`
-		Title         string         `json:"title"`
-		Description   string         `json:"description"`
-		PickupTime    string         `json:"pickUpTime"`
-		Distance      string         `json:"distance"`
-		Price         float64        `json:"price"`
-		OriginalPrice float64        `json:"originalPrice"`
-		BackgroundURL string         `json:"backgroundUrl"`
-		AvatarURL     string         `json:"avatarUrl"`
-		ImageURL      string         `json:"imageUrl"`
-		Rating        float64        `json:"rating"`
-		Reviews       int            `json:"reviews"`
-		Address       string         `json:"address"`
-		City          string         `json:"city"`
-		State         string         `json:"state"`
-		ZipCode       string         `json:"zipCode"`
-		Phone         string         `json:"phone"`
-		ItemsLeft     int            `json:"itemsLeft"`
-		Latitude      float64        `json:"latitude"`
-		Longitude     float64        `json:"longitude"`
-		Highlights    pq.StringArray `json:"highlights"`
-		IsSaved       bool           `json:"isSaved"`
-		StoreType     string         `json:"storeType"`
-		BusinessHours types.JSONText `json:"businessHours"`
+		ID              string         `json:"id"`
+		Title           string         `json:"title"`
+		Description     string         `json:"description"`
+		PickupTime      string         `json:"pickUpTime"`
+		Distance        string         `json:"distance"`
+		Price           float64        `json:"price"`
+		OriginalPrice   float64        `json:"originalPrice"`
+		DiscountedPrice float64        `json:"discountedPrice"`
+		BackgroundURL   string         `json:"backgroundUrl"`
+		AvatarURL       string         `json:"avatarUrl"`
+		ImageURL        string         `json:"imageUrl"`
+		Rating          float64        `json:"rating"`
+		Reviews         int            `json:"reviews"`
+		Address         string         `json:"address"`
+		City            string         `json:"city"`
+		State           string         `json:"state"`
+		ZipCode         string         `json:"zipCode"`
+		Phone           string         `json:"phone"`
+		ItemsLeft       int            `json:"itemsLeft"`
+		Latitude        float64        `json:"latitude"`
+		Longitude       float64        `json:"longitude"`
+		Highlights      pq.StringArray `json:"highlights"`
+		IsSaved         bool           `json:"isSaved"`
+		StoreType       string         `json:"storeType"`
+		BusinessHours   types.JSONText `json:"businessHours"`
 	}{
-		ID:            modelStore.ID,
-		Title:         modelStore.Title,
-		Description:   description,
-		PickupTime:    pickupTime,
-		Distance:      distance,
-		Price:         price,
-		OriginalPrice: originalPrice,
-		BackgroundURL: modelStore.BackgroundURL,
-		AvatarURL:     avatarURL,
-		ImageURL:      modelStore.ImageURL,
-		Rating:        rating,
-		Reviews:       reviews,
-		Address:       modelStore.Address,
-		City:          city,
-		State:         state,
-		ZipCode:       zipCode,
-		Phone:         phone,
-		ItemsLeft:     itemsLeft,
-		Latitude:      modelStore.Latitude,
-		Longitude:     modelStore.Longitude,
-		Highlights:    modelStore.Highlights,
-		IsSaved:       saved,
-		StoreType:     modelStore.StoreType.String,
-		BusinessHours: modelStore.BusinessHours,
+		ID:              modelStore.ID,
+		Title:           modelStore.Title,
+		Description:     description,
+		PickupTime:      pickupTime,
+		Distance:        distance,
+		Price:           price,
+		OriginalPrice:   originalPrice,
+		DiscountedPrice: discountedPrice,
+		BackgroundURL:   modelStore.BackgroundURL,
+		AvatarURL:       avatarURL,
+		ImageURL:        modelStore.ImageURL,
+		Rating:          rating,
+		Reviews:         reviews,
+		Address:         modelStore.Address,
+		City:            city,
+		State:           state,
+		ZipCode:         zipCode,
+		Phone:           phone,
+		ItemsLeft:       itemsLeft,
+		Latitude:        modelStore.Latitude,
+		Longitude:       modelStore.Longitude,
+		Highlights:      modelStore.Highlights,
+		IsSaved:         saved,
+		StoreType:       modelStore.StoreType.String,
+		BusinessHours:   modelStore.BusinessHours,
 	}
 
-	log.Printf("DEBUG: Returning successful response for storeID: '%s'", storeID)
 	c.JSON(http.StatusOK, responseStore)
 }
 

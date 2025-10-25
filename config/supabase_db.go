@@ -53,13 +53,6 @@ func InitializeSupabaseDB() (*sqlx.DB, error) {
 	var connectionString string
 	var connectionType string
 
-	// Priority order based on Supabase recommendations:
-	// 1. Dedicated pooler (best performance, paid tier)
-	// 2. Direct connection (persistent servers with IPv6)
-	// 3. Session pooler (persistent servers without IPv6)
-	// 4. Transaction pooler (serverless/edge functions)
-	// 5. Fallback to DATABASE_URL
-
 	// Use Session Pooler (IPv4/IPv6 compatible) instead of Direct Connection (IPv6 only)
 	// This fixes the "no route to host" error for environments without IPv6 support
 	if config.DedicatedPooler != "" {
@@ -76,9 +69,6 @@ func InitializeSupabaseDB() (*sqlx.DB, error) {
 		// connectionString = "postgresql://postgres:kientrungto9502@db.zopjihcaghguorqqopjv.supabase.co:5432/postgres"
 		connectionString = os.Getenv("DATABASE_URL")
 		if connectionString == "" {
-			// Use IPv4-only session pooler format to avoid IPv6 connectivity issues
-			// This uses the Session Pooler which supports both IPv4 and IPv6 but prefers IPv4
-
 			connectionString = "postgresql://postgres.pdafqwrgdgbqbgbbtqqa:totrungkien0905@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
 			// "postgresql://postgres.zopjihcaghguorqqopjv:totrungkien0905@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
 		}
@@ -91,7 +81,7 @@ func InitializeSupabaseDB() (*sqlx.DB, error) {
 	// Create database connection
 	db, err := sqlx.Connect("postgres", connectionString)
 	if err != nil {
-		log.Printf("🔍 DEBUG: error connecting to Supabase database: %v", err)
+		log.Printf("Error connecting to Supabase database: %v", err)
 		return nil, fmt.Errorf("failed to connect to Supabase database: %v", err)
 	}
 
@@ -103,13 +93,11 @@ func InitializeSupabaseDB() (*sqlx.DB, error) {
 
 	// Test the connection
 	if err := db.Ping(); err != nil {
-		log.Printf("🔍 DEBUG: error pinging Supabase database: %v", err)
+		log.Printf("Error pinging Supabase database: %v", err)
 		return nil, fmt.Errorf("failed to ping Supabase database: %v", err)
 	}
 
 	log.Printf("✅ Successfully connected to Supabase PostgreSQL")
-	// log.Printf("📊 Connection pool configured: MaxOpen=%d, MaxIdle=%d, MaxLifetime=%v, MaxIdleTime=%v",
-	// 	config.MaxOpenConns, config.MaxIdleConns, config.ConnMaxLifetime, config.ConnMaxIdleTime)
 
 	return db, nil
 }

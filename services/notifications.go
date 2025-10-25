@@ -9,15 +9,20 @@ import (
 	"time"
 )
 
-// NotificationService handles email and SMS notifications
+// NotificationService handles SMS notifications via Twilio
+// NOTE: Email functionality has been moved to services/email.go for better templates
+// This service now focuses solely on SMS notifications
 type NotificationService struct {
-	SMTPHost     string
-	SMTPPort     string
-	SMTPUsername string
-	SMTPPassword string
-	TwilioSID    string
-	TwilioToken  string
-	TwilioPhone  string
+	// DEPRECATED: SMTP fields no longer used - email moved to services/email.go
+	SMTPHost     string // Kept for backward compatibility
+	SMTPPort     string // Kept for backward compatibility
+	SMTPUsername string // Kept for backward compatibility
+	SMTPPassword string // Kept for backward compatibility
+
+	// Twilio SMS fields
+	TwilioSID   string
+	TwilioToken string
+	TwilioPhone string
 }
 
 // ReservationNotificationData contains data for notification templates
@@ -49,32 +54,21 @@ func InitializeNotificationService() {
 	}
 }
 
-// SendReservationConfirmation sends both email and SMS notifications
+// SendReservationConfirmation sends SMS notification only (email is handled by email.go service)
+// DEPRECATED: Email functionality moved to services/email.go for better templates
 func (ns *NotificationService) SendReservationConfirmation(data ReservationNotificationData) error {
-	var errors []string
-
-	// Send email if email is provided
-	if data.Email != "" && ns.SMTPUsername != "" && ns.SMTPPassword != "" {
-		if err := ns.sendEmailConfirmation(data); err != nil {
-			errors = append(errors, fmt.Sprintf("Email error: %v", err))
-		}
-	}
-
-	// Send SMS if phone is provided
+	// Only send SMS - email is handled by the dedicated email service
 	if data.Phone != "" && ns.TwilioSID != "" && ns.TwilioToken != "" {
 		if err := ns.sendSMSConfirmation(data); err != nil {
-			errors = append(errors, fmt.Sprintf("SMS error: %v", err))
+			return fmt.Errorf("SMS error: %v", err)
 		}
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("notification errors: %v", errors)
 	}
 
 	return nil
 }
 
 // sendEmailConfirmation sends email confirmation
+// DEPRECATED: This function is no longer used. Email functionality moved to services/email.go
 func (ns *NotificationService) sendEmailConfirmation(data ReservationNotificationData) error {
 	subject := "Xác nhận đặt hàng - Savor"
 	body := ns.generateEmailTemplate(data)
@@ -136,6 +130,7 @@ func (ns *NotificationService) sendSMSConfirmation(data ReservationNotificationD
 }
 
 // generateEmailTemplate creates HTML email template
+// DEPRECATED: This function is no longer used. Email templates moved to services/email.go
 func (ns *NotificationService) generateEmailTemplate(data ReservationNotificationData) string {
 	return fmt.Sprintf(`
 <!DOCTYPE html>
